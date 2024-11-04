@@ -11,12 +11,10 @@ module zion::liquidity_pool {
   use zion::z_apt::ZAPT;
   use zion::whitelist;
 
-  friend zion::better_crash;
+  friend zion::crash;
 
   const LP_COIN_DECIMALS: u8 = 8;
   const SEED: vector<u8> = b"zion-liquidity-pool";
-
-  const E_ACCOUNT_NOT_ADMIN: u64 = 0;
 
   struct LiquidityPool<phantom BettingCoinType, phantom LPCoinType> has key {
     reserve_coin: Coin<BettingCoinType>,
@@ -65,7 +63,10 @@ module zion::liquidity_pool {
   fun init_module(admin: &signer) {
     let (resource_account_signer, signer_cap) = account::create_resource_account(admin, SEED);
 
-    whitelist::create_module_whitelist(&resource_account_signer, admin);
+    //Whitlist gets initialized in crash module.
+    if(!whitelist::whitelist_exists(signer::address_of(&resource_account_signer))){
+      whitelist::create_module_whitelist(&resource_account_signer, admin); 
+    };
 
     move_to<State>(
       &resource_account_signer,
@@ -87,7 +88,7 @@ module zion::liquidity_pool {
     lp_token_decimals: u8
   ) acquires State {
 
-    assert!(whitelist::is_in_whitelist(get_resource_address(), signer::address_of(admin)), E_ACCOUNT_NOT_ADMIN);
+    whitelist::assert_is_admin(get_resource_address(), admin);
 
     let (lp_coin_burn_cap, lp_coin_freeze_cap, lp_coin_mint_cap) = 
       coin::initialize<LPCoinType>(

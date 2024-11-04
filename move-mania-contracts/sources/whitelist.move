@@ -21,10 +21,10 @@ module zion::whitelist {
         move_to(resource_account_signer, whitelist)
     }
 
-    const ACCOUNT_NOT_ADMIN: u64 = 0;
+    const EAccountNotAdmin: u64 = 0;
 
     public entry fun add_to_whitelist(resource_account_address: address, admin: &signer, new_admin: address) acquires Whitelist {
-        assert!(is_in_whitelist(resource_account_address, signer::address_of(admin)), ACCOUNT_NOT_ADMIN);
+        assert!(is_in_whitelist(resource_account_address, signer::address_of(admin)), EAccountNotAdmin);
         let whitelist = borrow_global_mut<Whitelist>(resource_account_address);
         simple_map::add(
             &mut whitelist.allowed, 
@@ -34,7 +34,7 @@ module zion::whitelist {
     }
 
     public entry fun remove_from_whitelist(resource_account_address: address, admin: &signer, old_admin: address) acquires Whitelist {
-        assert!(is_in_whitelist(resource_account_address, signer::address_of(admin)), ACCOUNT_NOT_ADMIN);
+        assert!(is_in_whitelist(resource_account_address, signer::address_of(admin)), EAccountNotAdmin);
         let whitelist = borrow_global_mut<Whitelist>(resource_account_address);
         simple_map::upsert(
             &mut whitelist.allowed, 
@@ -49,6 +49,14 @@ module zion::whitelist {
             return *simple_map::borrow(&whitelist.allowed, &account)
         };
         return false
+    }
+
+    public fun whitelist_exists(resource_account_address: address): bool {
+        exists<Whitelist>(resource_account_address)
+    }
+
+    public fun assert_is_admin(resource_account_address: address, admin: &signer) acquires Whitelist{
+        assert!(is_in_whitelist(resource_account_address, signer::address_of(admin)), EAccountNotAdmin);
     }
 
     #[test(aptos_framework = @0x1, admin = @0xCAFE, new_admin = @0x12, normal_person = @0x34)]
@@ -77,7 +85,7 @@ module zion::whitelist {
     }
 
     #[test(aptos_framework = @0x1, admin = @0xCAFE, normal_person = @0x34)]
-    #[expected_failure(abort_code = ACCOUNT_NOT_ADMIN)]
+    #[expected_failure(abort_code = EAccountNotAdmin)]
     fun test_whitelist_not_allowed_to_add(
         aptos_framework: &signer,
         admin: &signer,
@@ -91,7 +99,7 @@ module zion::whitelist {
     }
 
     #[test(aptos_framework = @0x1, admin = @0xCAFE, normal_person = @0x34)]
-    #[expected_failure(abort_code = ACCOUNT_NOT_ADMIN)]
+    #[expected_failure(abort_code = EAccountNotAdmin)]
     fun test_whitelist_not_allowed_to_remove(
         aptos_framework: &signer,
         admin: &signer,
