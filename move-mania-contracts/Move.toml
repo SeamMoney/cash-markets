@@ -12,9 +12,7 @@ aptos_framework = "0x1"
 [dev-addresses]
 zion = "0xBEEF"
 
-[dependencies.AptosFramework]
-git = "https://github.com/aptos-labs/aptos-core.git"
-rev = "randomnet"
-subdir = "aptos-move/framework/aptos-framework"
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "mainnet", subdir = "aptos-move/framework/aptos-framework" }
 
 [dev-dependencies]
