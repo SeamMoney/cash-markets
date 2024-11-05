@@ -244,6 +244,40 @@ module zion::crash {
   }
 
 
+  public entry fun place_bet_fa<LiquidityPoolType>(
+    player: &signer,
+    bet_amount: u64,
+  ) acquires State {
+
+    let bet_identifier = type_info::type_name<LiquidityPoolType>();
+
+    let state = borrow_global_mut<State>(get_resource_address());
+
+    assert!(option::is_some(&state.current_game), ENoGameExists);
+
+    let game_mut_ref = option::borrow_mut(&mut state.current_game);
+    assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
+
+    event::emit_event(
+      &mut state.bet_placed_events,
+      BetPlacedEvent {
+        player: signer::address_of(player),
+        bet_amount
+      }
+    );
+
+    let new_bet = Bet {
+      player: signer::address_of(player),
+      bet_amount,
+      cash_out: option::none(),
+      token_address_as_string: bet_identifier
+    };
+    simple_map::add(&mut game_mut_ref.bets, signer::address_of(player), new_bet);
+    
+    liquidity_pool::put_reserve_coins_fa<LiquidityPoolType>(player, bet_amount);
+  }
+
+
   /*
   * Allows a player to cash out their bet in the current game of crash. To be used by players via the client.
   * @param player - the signer of the player
@@ -340,6 +374,52 @@ module zion::crash {
                 if (winnings > 0) {
                     let winnings_coin = liquidity_pool::extract_reserve_coins<BettingCoinType, LPCoinType>(winnings);
                     coin::deposit<BettingCoinType>(better, winnings_coin);
+                };
+
+                simple_map::remove(&mut game.bets, &better);
+
+                event::emit_event(
+                    &mut state.winnings_paid_to_player_events,
+                    WinningsPaidToPlayerEvent {
+                    player: better,
+                    winnings
+                    }
+                );
+            };
+
+            i = i + 1;
+        };
+    }
+
+
+
+    public entry fun distribute_winnings_fa<LiquidityPoolType>() acquires State {
+        let state = borrow_global_mut<State>(get_resource_address());
+        assert!(option::is_some(&state.current_game), ENoGameExists);
+
+        let game_mut_ref = option::borrow_mut(&mut state.current_game);
+        assert!(timestamp::now_microseconds() >= game_mut_ref.start_time_ms, EGameNotStarted);
+
+        let bet_identifier = type_info::type_name<LiquidityPoolType>();
+
+        let game = option::borrow_mut(&mut state.current_game);
+        
+        assert!(option::is_some(&game.crash_point), EGameHasntEnded);
+        let crash_point = *option::borrow(&game.crash_point);
+
+        let betters = simple_map::keys(&game.bets);
+
+        let i = 0;
+
+        while (i < vector::length(&betters)) {
+            let better = *vector::borrow(&mut betters, i);
+            let bet = simple_map::borrow_mut(&mut game.bets, &better);
+
+            if(bet_identifier == bet.token_address_as_string){
+                let winnings = determine_win(bet, crash_point);
+
+                if (winnings > 0) {
+                    liquidity_pool::extract_reserve_coins_fa<LiquidityPoolType>(winnings, better);
                 };
 
                 simple_map::remove(&mut game.bets, &better);
