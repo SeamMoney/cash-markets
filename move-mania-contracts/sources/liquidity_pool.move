@@ -2,19 +2,27 @@ module zion::liquidity_pool {
 
   use std::string::{Self, String};
   use std::signer;
+  use std::vector::{Self};
   use std::object::{Self, Object};
-  use aptos_framework::event;
+  use aptos_std::type_info::{Self, type_name};
+  use aptos_framework::event::{Self};
   use aptos_framework::option;
   use aptos_framework::math128;
   use aptos_framework::account;
+  use aptos_framework::object::{ConstructorRef};
   use aptos_framework::coin::{Self, Coin};
-  use aptos_framework::primary_fungible_store::{Self};
-  use aptos_framework::fungible_asset::{Self, MintRef, BurnRef, FungibleStore, Metadata};
+  use aptos_framework::primary_fungible_store::{Self, create_primary_store_enabled_fungible_asset};
+  use aptos_framework::fungible_asset::{Self, MintRef, TransferRef, BurnRef, FungibleStore, Metadata};
 
   use zion::z_apt::ZAPT;
   use zion::whitelist;
 
   friend zion::crash;
+
+  #[test_only]
+  use aptos_framework::fungible_asset::{generate_mint_ref, generate_burn_ref, generate_transfer_ref};
+  #[test_only]
+  use aptos_framework::event::{emitted_events};
 
   const LP_COIN_DECIMALS: u8 = 8;
   const SEED: vector<u8> = b"zion-liquidity-pool";
@@ -28,8 +36,8 @@ module zion::liquidity_pool {
     lp_coin_burn_cap: coin::BurnCapability<LPCoinType>
   }
 
-  struct LiquidityPoolFA<phantom LiquidityPoolType> has key {
-    reserve_metadata: Object<Metadata>,
+  struct LiquidityPoolFA<phantom ResMeta> has key {
+    reserve_metadata: Object<ResMeta>,
     lp_metadata: Object<Metadata>,
     lp_mint_ref: MintRef,
     lp_burn_ref: BurnRef
@@ -42,32 +50,56 @@ module zion::liquidity_pool {
     withdraw_events: event::EventHandle<WithdrawEvent>,
     extract_events: event::EventHandle<ExtractEvent>,
     put_events: event::EventHandle<PutEvent>,
-    lock_events: event::EventHandle<LockEvent>
+    // lock_events: event::EventHandle<LockEvent>,
+    new_fa_pool_events: event::EventHandle<NewFALPEvent>,
+    new_pool_events: event::EventHandle<NewLPEvent>
   }
 
+  #[event]
   struct DepositEvent has drop, store {
+    token: String,
     address: address, 
-    apt_amount: u64,
+    amount: u64,
     lp_coin_amount: u64
   }
 
+  #[event]
   struct WithdrawEvent has drop, store {
+    token: String,
     address: address, 
-    apt_amount: u64,
+    amount: u64,
     lp_coin_amount: u64
   }
 
+  #[event]
   struct ExtractEvent has drop, store {
-    apt_amount: u64
+    token: String,
+    amount: u64
   }
 
+  #[event]
   struct PutEvent has drop, store {
-    apt_amount: u64
+    token: String,
+    amount: u64
   }
 
-  struct LockEvent has drop, store {
-    address: address, 
-    lp_coin_amount: u64
+  // #[event]
+  // struct LockEvent has drop, store {
+
+  //   address: address, 
+  //   lp_coin_amount: u64
+  // }
+
+  #[event]
+  struct NewFALPEvent has drop, store {
+    reserve_metadata: address,
+    lp_metadata: address
+  }
+
+  #[event]
+  struct NewLPEvent has drop, store {
+    reserve_token_type: String,
+    lp_token_type: String
   }
 
   fun init_module(admin: &signer) {
@@ -86,14 +118,16 @@ module zion::liquidity_pool {
         withdraw_events: account::new_event_handle(&resource_account_signer),
         extract_events: account::new_event_handle(&resource_account_signer),
         put_events: account::new_event_handle(&resource_account_signer),
-        lock_events: account::new_event_handle(&resource_account_signer)
+        // lock_events: account::new_event_handle(&resource_account_signer),
+        new_fa_pool_events: account::new_event_handle(&resource_account_signer),
+        new_pool_events: account::new_event_handle(&resource_account_signer),
       }
     );
   }
 
-  public entry fun init_fa_LP_pool<LiquidityPoolType>(
+  public entry fun init_fa_LP_pool<ResMeta: key>(
     admin: &signer,
-    reserve_metadata: Object<Metadata>,
+    reserve_metadata: Object<ResMeta>,
     lp_token_name: String, 
     lp_token_ticker: String, 
     lp_token_decimals: u8,
@@ -118,16 +152,31 @@ module zion::liquidity_pool {
     let pool_state = borrow_global<State>(get_resource_address());
     let resource_account_signer = account::create_signer_with_capability(&pool_state.signer_cap);
 
+    let lp_metadata = object::object_from_constructor_ref<Metadata>(constructor_ref);
+
     move_to(
       &resource_account_signer,
-      LiquidityPoolFA<LiquidityPoolType> {
+      LiquidityPoolFA {
         reserve_metadata,
-        lp_metadata: object::object_from_constructor_ref<Metadata>(constructor_ref),
+        lp_metadata,
         lp_mint_ref,
         lp_burn_ref
       }
     );
 
+    event::emit_event(
+      &mut borrow_global_mut<State>(get_resource_address()).new_fa_pool_events,
+      NewFALPEvent {
+        reserve_metadata: object::object_address(&reserve_metadata),
+        lp_metadata: object::object_address(&lp_metadata)
+      }
+    );
+
+    event::emit(
+      NewFALPEvent {
+        reserve_metadata: object::object_address(&reserve_metadata),
+        lp_metadata: object::object_address(&lp_metadata)
+      });
   }
 
   public entry fun init_LP_pool<BettingCoinType, LPCoinType>(
@@ -161,6 +210,21 @@ module zion::liquidity_pool {
         lp_coin_burn_cap
       }
     );
+
+    event::emit_event(
+      &mut borrow_global_mut<State>(get_resource_address()).new_pool_events,
+      NewLPEvent {
+        reserve_token_type: type_name<BettingCoinType>(),
+        lp_token_type: type_name<LPCoinType>()
+      }
+    );
+
+    event::emit(
+      NewLPEvent {
+        reserve_token_type: type_name<BettingCoinType>(),
+        lp_token_type: type_name<LPCoinType>()
+      }
+    )
   }
 
   public entry fun supply_liquidity<BettingCoinType, LPCoinType>(
@@ -181,11 +245,21 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).deposit_events,
       DepositEvent {
+        token: type_info::type_name<BettingCoinType>(),
         address: signer::address_of(supplier),
-        apt_amount: supply_amount,
+        amount: supply_amount,
+        lp_coin_amount: amount_lp_coins_to_mint
+      });
+
+    event::emit(
+      DepositEvent {
+        token: type_info::type_name<BettingCoinType>(),
+        address: signer::address_of(supplier),
+        amount: supply_amount,
         lp_coin_amount: amount_lp_coins_to_mint
       }
     );
+    
 
     let supplied_coin = coin::withdraw(supplier, supply_amount);
     coin::merge(&mut liquidity_pool.reserve_coin, supplied_coin);
@@ -195,11 +269,11 @@ module zion::liquidity_pool {
     coin::deposit(signer::address_of(supplier), lp_coin);
   }
 
-  public entry fun supply_fa_liquidity<LiquidityPoolType>(
+  public entry fun supply_fa_liquidity<ResMeta: key>(
     supplier: &signer,
     supply_amount: u64,
   ) acquires LiquidityPoolFA, State {
-    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<LiquidityPoolType>>(get_resource_address());
+    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<ResMeta>>(get_resource_address());
 
     let reserve_metadata = liquidity_pool.reserve_metadata;
     let lp_metadata = liquidity_pool.lp_metadata;
@@ -216,11 +290,21 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).deposit_events,
       DepositEvent {
+        token: type_info::type_name<ResMeta>(), 
         address: signer::address_of(supplier),
-        apt_amount: supply_amount,
+        amount: supply_amount,
         lp_coin_amount: amount_lp_coins_to_mint
-      }
-    );
+      });
+
+      event::emit(
+        DepositEvent {
+          token: type_info::type_name<ResMeta>(),
+          address: signer::address_of(supplier),
+          amount: supply_amount,
+          lp_coin_amount: amount_lp_coins_to_mint
+        }
+      );
+    
 
     primary_fungible_store::transfer(supplier, reserve_metadata, get_resource_address(), supply_amount);
     primary_fungible_store::mint(&liquidity_pool.lp_mint_ref, signer::address_of(supplier), amount_lp_coins_to_mint);
@@ -242,8 +326,18 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).withdraw_events,
       WithdrawEvent {
+        token: type_info::type_name<BettingCoinType>(),
         address: signer::address_of(supplier),
-        apt_amount: amount_reserve_to_remove,
+        amount: amount_reserve_to_remove,
+        lp_coin_amount
+      }
+    );
+
+    event::emit(
+      WithdrawEvent {
+        token: type_info::type_name<BettingCoinType>(),
+        address: signer::address_of(supplier),
+        amount: amount_reserve_to_remove,
         lp_coin_amount
       }
     );
@@ -252,11 +346,11 @@ module zion::liquidity_pool {
     coin::burn(lp_coin_to_remove, &liquidity_pool.lp_coin_burn_cap);
   }
 
-    public entry fun remove_fa_liquidity<LiquidityPoolType>(
+  public entry fun remove_fa_liquidity<ResMeta: key>(
     supplier: &signer, 
     lp_coin_amount: u64
   ) acquires LiquidityPoolFA, State {
-    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<LiquidityPoolType>>(get_resource_address());
+    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<ResMeta>>(get_resource_address());
 
     let reserve_metadata = liquidity_pool.reserve_metadata;
     let lp_metadata = liquidity_pool.lp_metadata;
@@ -279,8 +373,17 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).withdraw_events,
       WithdrawEvent {
+        token: type_info::type_name<ResMeta>(),
         address: signer::address_of(supplier),
-        apt_amount: amount_reserve_to_remove,
+        amount: amount_reserve_to_remove,
+        lp_coin_amount
+      });
+
+    event::emit(
+      WithdrawEvent {
+        token: type_info::type_name<ResMeta>(),
+        address: signer::address_of(supplier),
+        amount: amount_reserve_to_remove,
         lp_coin_amount
       }
     );
@@ -288,41 +391,42 @@ module zion::liquidity_pool {
     primary_fungible_store::burn(&liquidity_pool.lp_burn_ref, signer::address_of(supplier), lp_coin_amount)
   }
 
-  public entry fun lock_lp_coins<BettingCoinType, LPCoinType>(
-    owner: &signer, 
-    lp_coin_amount: u64
-  ) acquires LiquidityPool, State {
-    let liquidity_pool = borrow_global_mut<LiquidityPool<BettingCoinType, LPCoinType>>(get_resource_address());  
-    let lp_coin_to_lock = coin::withdraw(owner, lp_coin_amount);
-    coin::merge(&mut liquidity_pool.locked_liquidity, lp_coin_to_lock);
+  //If you do this you can't get your money back.
+  // public entry fun lock_lp_coins<BettingCoinType, LPCoinType>(
+  //   owner: &signer, 
+  //   lp_coin_amount: u64
+  // ) acquires LiquidityPool, State {
+  //   let liquidity_pool = borrow_global_mut<LiquidityPool<BettingCoinType, LPCoinType>>(get_resource_address());  
+  //   let lp_coin_to_lock = coin::withdraw(owner, lp_coin_amount);
+  //   coin::merge(&mut liquidity_pool.locked_liquidity, lp_coin_to_lock);
 
-    event::emit_event(
-      &mut borrow_global_mut<State>(get_resource_address()).lock_events,
-      LockEvent {
-        address: signer::address_of(owner),
-        lp_coin_amount
-      }
-    );
-  } 
+  //   event::emit_event(
+  //     &mut borrow_global_mut<State>(get_resource_address()).lock_events,
+  //     LockEvent {
+  //       address: signer::address_of(owner),
+  //       lp_coin_amount
+  //     }
+  //   );
+  // } 
 
-  public entry fun lock_lp_coins_fa<LiquidityPoolType>(
-    owner: &signer, 
-    lp_coin_amount: u64
-  ) acquires LiquidityPoolFA, State {
-    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<LiquidityPoolType>>(get_resource_address());  
-    let reserve_metadata = liquidity_pool.reserve_metadata;
-    let lp_metadata = liquidity_pool.lp_metadata;
+  // public entry fun lock_lp_coins_fa<LiquidityPoolType>(
+  //   owner: &signer, 
+  //   lp_coin_amount: u64
+  // ) acquires LiquidityPoolFA, State {
+  //   let liquidity_pool = borrow_global_mut<LiquidityPoolFA<LiquidityPoolType>>(get_resource_address());  
+  //   let reserve_metadata = liquidity_pool.reserve_metadata;
+  //   let lp_metadata = liquidity_pool.lp_metadata;
 
-    primary_fungible_store::transfer(owner, lp_metadata, get_resource_address(), lp_coin_amount);
+  //   primary_fungible_store::transfer(owner, lp_metadata, get_resource_address(), lp_coin_amount);
 
-    event::emit_event(
-      &mut borrow_global_mut<State>(get_resource_address()).lock_events,
-      LockEvent {
-        address: signer::address_of(owner),
-        lp_coin_amount
-      }
-    );
-  } 
+  //   event::emit_event(
+  //     &mut borrow_global_mut<State>(get_resource_address()).lock_events,
+  //     LockEvent {
+  //       address: signer::address_of(owner),
+  //       lp_coin_amount
+  //     }
+  //   );
+  // } 
 
   public(friend) fun extract_reserve_coins<BettingCoinType, LPCoinType>(
     amount: u64
@@ -332,18 +436,26 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).extract_events,
       ExtractEvent {
-        apt_amount: amount
+        token: type_info::type_name<BettingCoinType>(),
+        amount
+      }
+    );
+
+    event::emit(
+      ExtractEvent {
+        token: type_info::type_name<BettingCoinType>(),
+        amount
       }
     );
 
     coin::extract(&mut liquidity_pool.reserve_coin, amount)
   }
 
-  public(friend) fun extract_reserve_coins_fa<LiquidityPoolType>(
+  public(friend) fun extract_reserve_coins_fa<ResMeta: key>(
     amount: u64,
     to: address
   ) acquires LiquidityPoolFA, State {
-    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<LiquidityPoolType>>(get_resource_address());
+    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<ResMeta>>(get_resource_address());
 
     let reserve_metadata = liquidity_pool.reserve_metadata;
     let lp_metadata = liquidity_pool.lp_metadata;
@@ -354,7 +466,15 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).extract_events,
       ExtractEvent {
-        apt_amount: amount
+        token: type_info::type_name<ResMeta>(),
+        amount
+      }
+    );
+
+    event::emit(
+      ExtractEvent {
+        token: type_info::type_name<ResMeta>(),
+        amount
       }
     );
 
@@ -369,18 +489,26 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).put_events,
       PutEvent {
-        apt_amount: coin::value(&coin)
+        token: type_info::type_name<BettingCoinType>(),
+        amount: coin::value(&coin)
+      }
+    );
+
+    event::emit(
+      PutEvent {
+        token: type_info::type_name<BettingCoinType>(),
+        amount: coin::value(&coin)
       }
     );
 
     coin::merge(&mut liquidity_pool.reserve_coin, coin);
   }
 
-  public fun put_reserve_coins_fa<LiquidityPoolType>(
+  public fun put_reserve_coins_fa<ResMeta: key>(
     from: &signer,
     amount: u64
   ) acquires LiquidityPoolFA, State {
-    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<LiquidityPoolType>>(get_resource_address());
+    let liquidity_pool = borrow_global_mut<LiquidityPoolFA<ResMeta>>(get_resource_address());
 
     let reserve_metadata = liquidity_pool.reserve_metadata;
     let lp_metadata = liquidity_pool.lp_metadata;
@@ -390,7 +518,15 @@ module zion::liquidity_pool {
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).put_events,
       PutEvent {
-        apt_amount: amount
+        token: type_info::type_name<ResMeta>(),
+        amount
+      }
+    );
+
+    event::emit(
+      PutEvent {
+        token: type_info::type_name<ResMeta>(),
+        amount
       }
     );
 
@@ -411,6 +547,12 @@ module zion::liquidity_pool {
     coin::value(&liquidity_pool.reserve_coin)
   }
 
+    // #[view]
+  public fun get_pool_supply_fa<FAType: key>(): u64 acquires LiquidityPoolFA {
+    let liquidity_pool = borrow_global<LiquidityPoolFA<FAType>>(get_resource_address());
+    primary_fungible_store::balance(get_resource_address(), liquidity_pool.reserve_metadata)
+  }
+
   // #[view]
   public fun get_lp_coin_supply<LPCoinType>(): u128 {
     *option::borrow(&coin::supply<LPCoinType>())
@@ -422,17 +564,202 @@ module zion::liquidity_pool {
     coin::value(&liquidity_pool.locked_liquidity)
   }
 
-  #[test_only]
-    fun create_test_token(admin: &signer): (ConstructorRef, Object<Metadata>, MintRef) {
-        let (constructor_ref, test_token) = fungible_asset::create_test_token(admin);
+    #[test_only]
+    struct TestToken1{}
+    #[test_only]
+    struct LPToken1{}
+    #[test_only]
+    struct TestToken2{}
+    #[test_only]
+    struct LPToken2{}
 
-        let (mint_ref, _, _) =
-            primary_fungible_store::init_test_metadata_with_primary_store_enabled(
-                &constructor_ref
-            );
-        let fa_metadata =
-            object::address_to_object<Metadata>(object::object_address(&test_token));
+    #[test_only]
+    struct FALiqType{}
 
-        (constructor_ref, fa_metadata, mint_ref)
+    #[test(admin = @zion, better = @0x123)]
+    #[expected_failure(abort_code = 0)]
+    fun test_cant_create_liq_pool(admin: signer, better: signer) acquires State {
+      init_module(&admin);
+      init_LP_pool<TestToken1, LPToken1>(&better, string::utf8(b"LpToken1"), string::utf8(b"LP1"), 8);
+    }
+
+    #[test(admin = @zion)]
+    fun test_create_liquidity_pool(admin: signer) acquires State, LiquidityPool {
+      account::create_account_for_test(signer::address_of(&admin));
+      let admin_addr = signer::address_of(&admin);
+      init_module(&admin);
+
+      let test_amount: u64 = 150;
+
+      let supply_amount_1 = 50;
+      let expected_lp_1 = 50;
+
+      let supply_amount_2 = 50;
+      let expected_lp_2 = 50;
+
+      let supply_amount_3 = 50;
+      let expected_lp_3 = 16;
+
+      let put_reserve_amount = 200;
+
+      let remove_amount_1 = 50;
+      let expected_return = 150;
+      
+      let extract_amount = 200;
+      
+
+      let (burn_cap, freeze_cap, mint_cap) = coin::initialize<TestToken1>(&admin, string::utf8(b"TestToken1"), string::utf8(b"TT1"), 8, false);
+      coin::register<TestToken1>(&admin);
+      let c = coin::mint(test_amount, &mint_cap);
+      coin::deposit(admin_addr, c);
+
+      assert!(coin::balance<TestToken1>(admin_addr) == test_amount, 0);
+
+      //Init Pool
+      init_LP_pool<TestToken1, LPToken1>(&admin, string::utf8(b"LpToken1"), string::utf8(b"LP1"), 8);
+
+      //Supply 1
+      supply_liquidity<TestToken1, LPToken1>(&admin, supply_amount_1);
+      assert!(coin::balance<TestToken1>(admin_addr) == test_amount - supply_amount_1, 0);
+      assert!(coin::balance<LPToken1>(admin_addr) == expected_lp_1, 0);
+
+      //Supply2
+      supply_liquidity<TestToken1, LPToken1>(&admin, supply_amount_2);
+      assert!(coin::balance<TestToken1>(admin_addr) == test_amount - supply_amount_1 - supply_amount_2, 0);
+      assert!(coin::balance<LPToken1>(admin_addr) == expected_lp_2 + expected_lp_1, 0);
+
+      //Put Into Reserve
+      let c = coin::mint(put_reserve_amount, &mint_cap);
+      put_reserve_coins<TestToken1, LPToken1>(c);
+
+      //Supply3
+      supply_liquidity<TestToken1, LPToken1>(&admin, supply_amount_3);
+      assert!(coin::balance<TestToken1>(admin_addr) == test_amount - supply_amount_1 - supply_amount_2 - supply_amount_3, 0);
+      assert!(coin::balance<LPToken1>(admin_addr) == expected_lp_2 + expected_lp_1 + expected_lp_3, 0);
+
+      //Remove 1
+      remove_liquidity<TestToken1, LPToken1>(&admin, remove_amount_1);
+      assert!(coin::balance<TestToken1>(admin_addr) == test_amount - supply_amount_1 - supply_amount_2 - supply_amount_3 + expected_return, 0);
+      assert!(coin::balance<LPToken1>(admin_addr) == expected_lp_2 + expected_lp_1 + expected_lp_3 - remove_amount_1, 0);
+
+      //Extract
+      let c = extract_reserve_coins<TestToken1, LPToken1>(extract_amount);
+      coin::deposit(admin_addr, c);
+      assert!(coin::balance<TestToken1>(admin_addr) == test_amount - supply_amount_1 - supply_amount_2 - supply_amount_3 + expected_return + extract_amount, 0);
+      assert!(get_pool_supply<TestToken1, LPToken1>() == supply_amount_1 + supply_amount_2 + supply_amount_3 + put_reserve_amount - expected_return - extract_amount, 0);
+
+      coin::destroy_freeze_cap(freeze_cap);
+      coin::destroy_mint_cap(mint_cap);
+      coin::destroy_burn_cap(burn_cap);
+    }
+
+    struct FAType has key {}
+
+    #[test_only]
+    public fun create_test_fa_token(creator: &signer): (ConstructorRef, Object<FAType>) {
+        account::create_account_for_test(signer::address_of(creator));
+        let creator_ref = object::create_named_object(creator, b"TEST");
+        let object_signer = object::generate_signer(&creator_ref);
+        move_to(&object_signer, FAType {});
+
+        let token = object::object_from_constructor_ref<FAType>(&creator_ref);
+        (creator_ref, token)
+    }
+
+    #[test_only]
+    public fun init_test_metadata_with_primary_store_enabled(
+        constructor_ref: &ConstructorRef
+    ): (MintRef, TransferRef, BurnRef) {
+        create_primary_store_enabled_fungible_asset(
+            constructor_ref,
+            option::none(), // max supply
+            string::utf8(b"TEST COIN"),
+            string::utf8(b"@T"),
+            0,
+            string::utf8(b"http://example.com/icon"),
+            string::utf8(b"http://example.com"),
+        );
+        let mint_ref = generate_mint_ref(constructor_ref);
+        let burn_ref = generate_burn_ref(constructor_ref);
+        let transfer_ref = generate_transfer_ref(constructor_ref);
+        (mint_ref, transfer_ref, burn_ref)
+    }
+
+    #[test(admin = @zion)]
+    fun test_create_fa_liquidity_pool(admin: signer) acquires State, LiquidityPoolFA {
+      account::create_account_for_test(signer::address_of(&admin));
+      let admin_addr = signer::address_of(&admin);
+      init_module(&admin);
+
+      let test_amount: u64 = 150;
+
+      let supply_amount_1 = 50;
+      let expected_lp_1 = 50;
+
+      let supply_amount_2 = 50;
+      let expected_lp_2 = 50;
+
+      let supply_amount_3 = 50;
+      let expected_lp_3 = 16;
+
+      let put_reserve_amount = 200;
+
+      let remove_amount_1 = 50;
+      let expected_return = 150;
+      
+      let extract_amount = 200;
+      
+      let (creator_ref, metadata) = create_test_fa_token(&admin);
+      let (mint_ref, transfer_ref, burn_ref) = init_test_metadata_with_primary_store_enabled(&creator_ref);
+      primary_fungible_store::mint(&mint_ref, admin_addr, test_amount);
+
+      assert!(primary_fungible_store::balance(admin_addr, metadata) == test_amount, 0);
+
+      // //Init Pool
+      init_fa_LP_pool<FAType>(
+        &admin,
+        metadata,
+        string::utf8(b"FA_LP_Token"),
+        string::utf8(b"FALPT"),
+        8,
+        string::utf8(b"example.com"),
+        string::utf8(b"example.com"),
+      );
+
+      // let state = borrow_global<State>(get_resource_address());
+      let events = emitted_events<NewFALPEvent>();
+      let new_fa_pool_event = vector::borrow(&events, 0);
+
+      let reserve_metadata = object::address_to_object<FAType>(new_fa_pool_event.reserve_metadata);
+      let lp_metadata = object::address_to_object<Metadata>(new_fa_pool_event.lp_metadata);
+
+      // //Supply 1
+      supply_fa_liquidity<FAType>(&admin, supply_amount_1);
+      assert!(primary_fungible_store::balance(admin_addr, reserve_metadata) == test_amount - supply_amount_1, 0);
+      assert!(primary_fungible_store::balance(admin_addr, lp_metadata) == expected_lp_1, 0);
+
+      // //Supply2
+      supply_fa_liquidity<FAType>(&admin, supply_amount_2);
+      assert!(primary_fungible_store::balance(admin_addr, reserve_metadata) == test_amount - supply_amount_1 - supply_amount_2, 0);
+      assert!(primary_fungible_store::balance(admin_addr, lp_metadata) == expected_lp_2 + expected_lp_1, 0);
+
+      // //Put Into Reserve
+      primary_fungible_store::mint(&mint_ref, admin_addr, put_reserve_amount);
+      put_reserve_coins_fa<FAType>(&admin, put_reserve_amount);
+
+      // //Supply3
+      supply_fa_liquidity<FAType>(&admin, supply_amount_3);
+      assert!(primary_fungible_store::balance(admin_addr, reserve_metadata) == test_amount - supply_amount_1 - supply_amount_2 - supply_amount_3, 0);
+      assert!(primary_fungible_store::balance(admin_addr, lp_metadata) == expected_lp_2 + expected_lp_1 + expected_lp_3, 0);
+
+      // //Remove 1
+      remove_fa_liquidity<FAType>(&admin, remove_amount_1);
+      assert!(primary_fungible_store::balance(admin_addr, reserve_metadata) == test_amount - supply_amount_1 - supply_amount_2 - supply_amount_3 + expected_return, 0);
+      assert!(primary_fungible_store::balance(admin_addr, lp_metadata) == expected_lp_2 + expected_lp_1 + expected_lp_3 - remove_amount_1, 0);
+
+      // //Extract
+      extract_reserve_coins_fa<FAType>(extract_amount, admin_addr);
+      assert!(primary_fungible_store::balance(admin_addr, reserve_metadata) == test_amount - supply_amount_1 - supply_amount_2 - supply_amount_3 + expected_return + extract_amount, 0);
+      assert!(get_pool_supply_fa<FAType>() == supply_amount_1 + supply_amount_2 + supply_amount_3 + put_reserve_amount - expected_return - extract_amount, 0);
     }
 }

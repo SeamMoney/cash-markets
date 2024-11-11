@@ -7,7 +7,7 @@ module zion::whitelist {
         allowed: SimpleMap<address, bool>
     }
 
-    public entry fun create_module_whitelist(admin: &signer, resource_account_signer: &signer){
+    public entry fun create_module_whitelist(resource_account_signer: &signer, admin: &signer){
         let whitelist = Whitelist{
             allowed: simple_map::new()
         };
@@ -44,6 +44,9 @@ module zion::whitelist {
     }
 
     public fun is_in_whitelist(resource_account_address: address, account: address): bool acquires Whitelist {
+        if(!whitelist_exists(resource_account_address)){
+            return false
+        };
         let whitelist = borrow_global_mut<Whitelist>(resource_account_address);
         if(simple_map::contains_key(&whitelist.allowed, &account)){
             return *simple_map::borrow(&whitelist.allowed, &account)
@@ -68,7 +71,7 @@ module zion::whitelist {
     ) acquires Whitelist {
         let (resource_account_signer, signer_cap) = account::create_resource_account(admin, b"TEST");
         let resource_account_address = signer::address_of(&resource_account_signer);
-        create_module_whitelist(admin, &resource_account_signer);
+        create_module_whitelist(&resource_account_signer, admin);
 
         assert!(is_in_whitelist(resource_account_address, signer::address_of(admin)), 1);
         assert!(!is_in_whitelist(resource_account_address, signer::address_of(normal_person)), 2);
@@ -93,7 +96,7 @@ module zion::whitelist {
     ) acquires Whitelist {
         let (resource_account_signer, signer_cap) = account::create_resource_account(admin, b"TEST");
         let resource_account_address = signer::address_of(&resource_account_signer);
-        create_module_whitelist(admin, &resource_account_signer);
+        create_module_whitelist(&resource_account_signer, admin);
 
         add_to_whitelist(resource_account_address, normal_person, signer::address_of(normal_person))
     }
@@ -107,7 +110,7 @@ module zion::whitelist {
     ) acquires Whitelist {
         let (resource_account_signer, signer_cap) = account::create_resource_account(admin, b"TEST");
         let resource_account_address = signer::address_of(&resource_account_signer);
-        create_module_whitelist(admin, &resource_account_signer);
+        create_module_whitelist(&resource_account_signer, admin);
 
         remove_from_whitelist(resource_account_address, normal_person, signer::address_of(normal_person))
     }

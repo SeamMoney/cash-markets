@@ -59,12 +59,14 @@ module zion::crash {
     token_address_as_string: String
   }
 
+  #[event]
   struct CrashPointCalculateEvent has drop, store {
     house_secret: vector<u8>,
     salt: vector<u8>,
     crash_point: u64
   }
 
+  #[event]
   struct RoundStartEvent has drop, store {
     start_time_micro_seconds: u64,
     house_secret_hash: vector<u8>,
@@ -72,17 +74,22 @@ module zion::crash {
     randomness: u64
   }
 
+  #[event]
   struct BetPlacedEvent has drop, store {
+    token: String,
     player: address,
     bet_amount: u64
   }
 
+  #[event]
   struct CashOutEvent has drop, store {
     player: address,
     cash_out: u64
   }
 
+  #[event]
   struct WinningsPaidToPlayerEvent has drop, store {
+    token: String,
     player: address,
     winnings: u64
   }
@@ -146,6 +153,15 @@ module zion::crash {
 
     event::emit_event(
       &mut state.round_start_events,
+      RoundStartEvent {
+        start_time_micro_seconds: timestamp::now_microseconds() + COUNTDOWN_MS,
+        house_secret_hash,
+        salt_hash,
+        randomness: new_randomness
+      }
+    );
+
+    event::emit(
       RoundStartEvent {
         start_time_micro_seconds: timestamp::now_microseconds() + COUNTDOWN_MS,
         house_secret_hash,
@@ -226,6 +242,15 @@ module zion::crash {
     event::emit_event(
       &mut state.bet_placed_events,
       BetPlacedEvent {
+        token: betting_coin_as_string,
+        player: signer::address_of(player),
+        bet_amount
+      }
+    );
+
+    event::emit(
+      BetPlacedEvent {
+        token: betting_coin_as_string,
         player: signer::address_of(player),
         bet_amount
       }
@@ -244,12 +269,12 @@ module zion::crash {
   }
 
 
-  public entry fun place_bet_fa<LiquidityPoolType>(
+  public entry fun place_bet_fa<ReserveTokenType: key>(
     player: &signer,
     bet_amount: u64,
   ) acquires State {
 
-    let bet_identifier = type_info::type_name<LiquidityPoolType>();
+    let bet_identifier = type_info::type_name<ReserveTokenType>();
 
     let state = borrow_global_mut<State>(get_resource_address());
 
@@ -261,6 +286,15 @@ module zion::crash {
     event::emit_event(
       &mut state.bet_placed_events,
       BetPlacedEvent {
+        token: type_info::type_name<ReserveTokenType>(),
+        player: signer::address_of(player),
+        bet_amount
+      }
+    );
+
+    event::emit(
+      BetPlacedEvent {
+        token: type_info::type_name<ReserveTokenType>(),
         player: signer::address_of(player),
         bet_amount
       }
@@ -274,7 +308,7 @@ module zion::crash {
     };
     simple_map::add(&mut game_mut_ref.bets, signer::address_of(player), new_bet);
     
-    liquidity_pool::put_reserve_coins_fa<LiquidityPoolType>(player, bet_amount);
+    liquidity_pool::put_reserve_coins_fa<ReserveTokenType>(player, bet_amount);
   }
 
 
@@ -300,6 +334,13 @@ module zion::crash {
 
     event::emit_event(
       &mut state.cash_out_events,
+      CashOutEvent {
+        player: player,
+        cash_out
+      }
+    );
+
+    event::emit(
       CashOutEvent {
         player: player,
         cash_out
@@ -344,6 +385,14 @@ module zion::crash {
         crash_point
       }
     );
+
+    event::emit(
+      CrashPointCalculateEvent {
+        house_secret: salted_house_secret,
+        salt,
+        crash_point
+      }
+    );
   }
 
     public entry fun distribute_winnings<BettingCoinType, LPCoinType>() acquires State {
@@ -381,8 +430,17 @@ module zion::crash {
                 event::emit_event(
                     &mut state.winnings_paid_to_player_events,
                     WinningsPaidToPlayerEvent {
-                    player: better,
-                    winnings
+                      token: type_info::type_name<BettingCoinType>(),
+                      player: better,
+                      winnings
+                    }
+                );
+
+                event::emit(
+                  WinningsPaidToPlayerEvent {
+                      token: type_info::type_name<BettingCoinType>(),
+                      player: better,
+                      winnings
                     }
                 );
             };
@@ -393,14 +451,14 @@ module zion::crash {
 
 
 
-    public entry fun distribute_winnings_fa<LiquidityPoolType>() acquires State {
+    public entry fun distribute_winnings_fa<ReserveTokenType: key>() acquires State {
         let state = borrow_global_mut<State>(get_resource_address());
         assert!(option::is_some(&state.current_game), ENoGameExists);
 
         let game_mut_ref = option::borrow_mut(&mut state.current_game);
         assert!(timestamp::now_microseconds() >= game_mut_ref.start_time_ms, EGameNotStarted);
 
-        let bet_identifier = type_info::type_name<LiquidityPoolType>();
+        let bet_identifier = type_info::type_name<ReserveTokenType>();
 
         let game = option::borrow_mut(&mut state.current_game);
         
@@ -419,7 +477,7 @@ module zion::crash {
                 let winnings = determine_win(bet, crash_point);
 
                 if (winnings > 0) {
-                    liquidity_pool::extract_reserve_coins_fa<LiquidityPoolType>(winnings, better);
+                    liquidity_pool::extract_reserve_coins_fa<ReserveTokenType>(winnings, better);
                 };
 
                 simple_map::remove(&mut game.bets, &better);
@@ -427,10 +485,19 @@ module zion::crash {
                 event::emit_event(
                     &mut state.winnings_paid_to_player_events,
                     WinningsPaidToPlayerEvent {
-                    player: better,
-                    winnings
+                      token: type_info::type_name<ReserveTokenType>(),
+                      player: better,
+                      winnings
                     }
                 );
+
+                event::emit(
+                  WinningsPaidToPlayerEvent {
+                    token: type_info::type_name<ReserveTokenType>(),
+                    player: better,
+                    winnings
+                  }
+                )
             };
 
             i = i + 1;
