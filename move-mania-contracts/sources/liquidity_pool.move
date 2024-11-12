@@ -6,22 +6,19 @@ module zion::liquidity_pool {
   use aptos_framework::option;
   use aptos_framework::math128;
   use aptos_framework::account;
-  use aptos_framework::coin::{Self, Coin, SimpleMap};
-  use std::type_info::{Self, TypeInfo, type_of};
+  use aptos_framework::coin::{Self, Coin};
 
-  // Use the existing CASH coin from the mainnet address - uptos pump coin
-  use 0x61ed8b048636516b4eaf4c74250fa4f9440d9c3e163d96aeb863fe658a4bdc67::CASH::CASH;
+  use zion::z_apt::ZAPT;
 
   friend zion::crash;
 
   const LP_COIN_DECIMALS: u8 = 8;
   const SEED: vector<u8> = b"zion-liquidity-pool";
-  const ERESERVE_NOT_FOUND: u64 = 1;
 
   struct LPCoin {}
 
   struct LiquidityPool has key {
-    reserves: SimpleMap<TypeInfo, Coin<any>>,
+    reserve_coin: Coin<ZAPT>,
     locked_liquidity: Coin<LPCoin>,
     // mint cap of the specific pool's LP token
     lp_coin_mint_cap: coin::MintCapability<LPCoin>,
@@ -41,26 +38,22 @@ module zion::liquidity_pool {
 
   struct DepositEvent has drop, store {
     address: address, 
-    coin_type: TypeInfo,
-    coin_amount: u64,
+    apt_amount: u64,
     lp_coin_amount: u64
   }
 
   struct WithdrawEvent has drop, store {
-    address: address,
-    coin_type: TypeInfo,
-    coin_amount: u64,
+    address: address, 
+    apt_amount: u64,
     lp_coin_amount: u64
   }
 
   struct ExtractEvent has drop, store {
-    coin_type: TypeInfo,
-    amount: u64,
+    apt_amount: u64
   }
 
   struct PutEvent has drop, store {
-    coin_type: TypeInfo,
-    amount: u64,
+    apt_amount: u64
   }
 
   struct LockEvent has drop, store {
@@ -84,7 +77,7 @@ module zion::liquidity_pool {
     move_to(
       &resource_account_signer,
       LiquidityPool {
-        reserves: SimpleMap::new<TypeInfo, Coin<any>>(),
+        reserve_coin: coin::zero<ZAPT>(),
         locked_liquidity: coin::zero<LPCoin>(),
         lp_coin_mint_cap,
         lp_coin_burn_cap
@@ -104,84 +97,63 @@ module zion::liquidity_pool {
     );
   }
 
-public entry fun supply_liquidity<CoinType>(
-  supplier: &signer,
-  supply_coin: Coin<CoinType>,
-) acquires LiquidityPool, State {
-  let liquidity_pool = borrow_global_mut<LiquidityPool>(get_resource_address());
-  let coin_type = type_of<CoinType>();
+  public entry fun supply_liquidity(
+    supplier: &signer,
+    supply_amount: u64,
+  ) acquires LiquidityPool, State {
+    let liquidity_pool = borrow_global_mut<LiquidityPool>(get_resource_address());
 
-  let reserves = &mut liquidity_pool.reserves;
-  if (!SimpleMap::contains_key(reserves, &coin_type)) {
-    SimpleMap::add(reserves, coin_type, coin::zero<CoinType>());
-  }
+    let reserve_amount = coin::value(&liquidity_pool.reserve_coin);
+    let lp_coin_supply = *option::borrow(&coin::supply<LPCoin>());
 
-  let reserve_coin = SimpleMap::borrow_mut(reserves, &coin_type);
-  let reserve_amount = coin::value(reserve_coin);
+    let amount_lp_coins_to_mint = if (lp_coin_supply == 0) {
+      supply_amount
+    } else {
+      (math128::mul_div((supply_amount as u128), lp_coin_supply, (reserve_amount as u128)) as u64)
+    };
 
-  let supply_amount = coin::value(&supply_coin);
-  let lp_coin_supply = *option::borrow(&coin::supply<LPCoin>());
+    event::emit_event(
+      &mut borrow_global_mut<State>(get_resource_address()).deposit_events,
+      DepositEvent {
+        address: signer::address_of(supplier),
+        apt_amount: supply_amount,
+        lp_coin_amount: amount_lp_coins_to_mint
+      }
+    );
 
-  let amount_lp_coins_to_mint = if (lp_coin_supply == 0) {
-    supply_amount
-  } else {
-    (math128::mul_div((supply_amount as u128), lp_coin_supply, (reserve_amount as u128)) as u64)
-  };
+    let supplied_coin = coin::withdraw(supplier, supply_amount);
+    coin::merge(&mut liquidity_pool.reserve_coin, supplied_coin);
 
-  coin::merge(reserve_coin, supply_coin);
-
-  let lp_coin = coin::mint(amount_lp_coins_to_mint, &liquidity_pool.lp_coin_mint_cap);
-  if (!coin::is_account_registered<LPCoin>(signer::address_of(supplier))) {
+    let lp_coin = coin::mint(amount_lp_coins_to_mint, &liquidity_pool.lp_coin_mint_cap);
     coin::register<LPCoin>(supplier);
+    coin::deposit(signer::address_of(supplier), lp_coin);
   }
-  coin::deposit(signer::address_of(supplier), lp_coin);
 
-  event::emit_event(
-    &mut borrow_global_mut<State>(get_resource_address()).deposit_events,
-    DepositEvent {
-      address: signer::address_of(supplier),
-      coin_type,
-      coin_amount: supply_amount,
-      lp_coin_amount: amount_lp_coins_to_mint
-    }
-  );
-}
+  public entry fun remove_liquidity(
+    supplier: &signer, 
+    lp_coin_amount: u64
+  ) acquires LiquidityPool, State {
+    let liquidity_pool = borrow_global_mut<LiquidityPool>(get_resource_address());
 
-  public entry fun remove_liquidity<CoinType>(
-  supplier: &signer, 
-  lp_coin_amount: u64
-) acquires LiquidityPool, State {
-  let liquidity_pool = borrow_global_mut<LiquidityPool>(get_resource_address());
-  let coin_type = type_of<CoinType>();
+    let reserve_amount = coin::value(&liquidity_pool.reserve_coin);
+    let lp_coin_supply = *option::borrow(&coin::supply<LPCoin>());
 
-  let reserves = &mut liquidity_pool.reserves;
-  assert!(SimpleMap::contains_key(reserves, &coin_type), ERESERVE_NOT_FOUND);
+    let amount_reserve_to_remove = (math128::mul_div((lp_coin_amount as u128), (reserve_amount as u128), lp_coin_supply) as u64);
+    let remove_reserve_coin = coin::extract(&mut liquidity_pool.reserve_coin, amount_reserve_to_remove);
+    coin::deposit(signer::address_of(supplier), remove_reserve_coin);
 
-  let reserve_coin = SimpleMap::borrow_mut(reserves, &coin_type);
-  let reserve_amount = coin::value(reserve_coin);
-  let lp_coin_supply = *option::borrow(&coin::supply<LPCoin>());
+    event::emit_event(
+      &mut borrow_global_mut<State>(get_resource_address()).withdraw_events,
+      WithdrawEvent {
+        address: signer::address_of(supplier),
+        apt_amount: amount_reserve_to_remove,
+        lp_coin_amount
+      }
+    );
 
-  let amount_reserve_to_remove = (math128::mul_div((lp_coin_amount as u128), (reserve_amount as u128), lp_coin_supply) as u64);
-
-  // Extract the coins from reserves
-  let removed_coin = coin::extract<CoinType>(reserve_coin, amount_reserve_to_remove);
-  coin::deposit(signer::address_of(supplier), removed_coin);
-
-  // Burn the LP tokens
-  let lp_coin_to_remove = coin::withdraw<LPCoin>(supplier, lp_coin_amount);
-  coin::burn(lp_coin_to_remove, &liquidity_pool.lp_coin_burn_cap);
-
-  // Emit event
-  event::emit_event(
-    &mut borrow_global_mut<State>(get_resource_address()).withdraw_events,
-    WithdrawEvent {
-      address: signer::address_of(supplier),
-      coin_type,
-      coin_amount: amount_reserve_to_remove,
-      lp_coin_amount
-    }
-  );
-}
+    let lp_coin_to_remove = coin::withdraw(supplier, lp_coin_amount);
+    coin::burn(lp_coin_to_remove, &liquidity_pool.lp_coin_burn_cap);
+  }
 
   public entry fun lock_lp_coins(
     owner: &signer, 
@@ -200,50 +172,34 @@ public entry fun supply_liquidity<CoinType>(
     );
   } 
 
-  public(friend) fun extract_reserve_coins<CoinType>(
+  public(friend) fun extract_reserve_coins(
     amount: u64
-  ): Coin<CoinType> acquires LiquidityPool, State {
+  ): Coin<ZAPT> acquires LiquidityPool, State {
     let liquidity_pool = borrow_global_mut<LiquidityPool>(get_resource_address());
-    let coin_type = type_of<CoinType>();
-
-    let reserves = &mut liquidity_pool.reserves;
-
-    assert!(SimpleMap::contains_key(reserves, &coin_type), ERESERVE_NOT_FOUND);
-
-    let reserve_coin_ref = SimpleMap::borrow_mut(reserves, &coin_type);
-    let extracted_coin = coin::extract<CoinType>(reserve_coin_ref, amount);
 
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).extract_events,
       ExtractEvent {
-        coin_type,
-        amount: amount
+        apt_amount: amount
       }
     );
 
-    extracted_coin
+    coin::extract(&mut liquidity_pool.reserve_coin, amount)
   }
 
-  public fun put_reserve_coins<CoinType>(
-    coin: Coin<CoinType>
+  public fun put_reserve_coins(
+    coin: Coin<ZAPT>
   ) acquires LiquidityPool, State {
     let liquidity_pool = borrow_global_mut<LiquidityPool>(get_resource_address());
-    let coin_type = type_of<CoinType>();
-
-    if (!SimpleMap::contains_key(&liquidity_pool.reserves, &coin_type)) {
-      SimpleMap::add(&mut liquidity_pool.reserves, coin_type, coin::zero<CoinType>());
-    }
-
-    let reserve_coin = SimpleMap::borrow(&liquidity_pool.reserves, &coin_type);
-    coin::merge(reserve_coin, coin);
 
     event::emit_event(
       &mut borrow_global_mut<State>(get_resource_address()).put_events,
       PutEvent {
-        coin_type,
-        amount: coin::value(&coin)
+        apt_amount: coin::value(&coin)
       }
     );
+
+    coin::merge(&mut liquidity_pool.reserve_coin, coin);
   }
 
   /* 
@@ -254,26 +210,11 @@ public entry fun supply_liquidity<CoinType>(
     account::create_resource_address(&@zion, SEED)
   }
 
-#[view]
-public fun get_pool_supply(): vector<(TypeInfo, u64)> acquires LiquidityPool {
-  let liquidity_pool = borrow_global<LiquidityPool>(get_resource_address());
-  let reserves = &liquidity_pool.reserves;
-
-  let coin_types = SimpleMap::keys(reserves);
-  let mut supplies = vector::empty<(TypeInfo, u64)>();
-
-  let len = vector::length(&coin_types);
-  let mut i = 0;
-  while (i < len) {
-    let coin_type = *vector::borrow(&coin_types, i);
-    let reserve_coin = SimpleMap::borrow(reserves, &coin_type);
-    let amount = coin::value(reserve_coin);
-    vector::push_back(&mut supplies, (coin_type, amount));
-
-    i = i + 1;
-  };
-  supplies
-}
+  #[view]
+  public fun get_pool_supply(): u64 acquires LiquidityPool {
+    let liquidity_pool = borrow_global<LiquidityPool>(get_resource_address());
+    coin::value(&liquidity_pool.reserve_coin)
+  }
 
   #[view]
   public fun get_lp_coin_supply(): u128 {

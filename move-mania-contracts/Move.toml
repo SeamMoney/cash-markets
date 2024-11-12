@@ -2,16 +2,15 @@
 name = "zion"
 version = "1.0.0"
 authors = []
-upgrade_policy = "compatible"
 
 [addresses]
-zion = "0x61ed8b048636516b4eaf4c74250fa4f9440d9c3e163d96aeb863fe658a4bdc67"
-crash = "7e37543a6d9474eee8419b500668e1d460f2f46f82b0ff74031a460e470f5def"
-liquidity_pool = "1db4b146eca34c7a6289d59782141a23bfef9ca5781c0042c9fb8670c8f786b3"
-cash = "3746efc2ee6385f2ee106f5f6da9784d414eb70d69d30a52ad8b09a00b06d870"
+zion = "_"
 std = "0x1"
 aptos_std = "0x1"
 aptos_framework = "0x1"
+
+[dev-addresses]
+zion = "0xBEEF"
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"

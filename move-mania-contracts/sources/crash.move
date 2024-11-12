@@ -12,10 +12,8 @@ module zion::crash {
   use std::string::{Self, String};
   use aptos_framework::string_utils;
   use std::simple_map::{Self, SimpleMap};
-  use 0x61ed8b048636516b4eaf4c74250fa4f9440d9c3e163d96aeb863fe658a4bdc67::CASH::CASH;
+  use aptos_framework::aptos_coin::{AptosCoin};
   use aptos_framework::event::{Self, EventHandle};
-  use zion::coin_registry;
-  use std::type_info::{Self, TypeInfo, type_of};
 
   use std::debug::print;
   
@@ -30,7 +28,6 @@ module zion::crash {
   const ENoBetToCashOut: u64 = 5;
   const EGameAlreadyExists: u64 = 6;
   const EHashesDoNotMatch: u64 = 7;
-  const E_NOT_ALLOWED_COIN: u64 = 8;
   
   struct State has key {
     signer_cap: account::SignerCapability,
@@ -53,8 +50,7 @@ module zion::crash {
   struct Bet has store {
     player: address, 
     bet_amount: u64, 
-    cash_out: Option<u64>,
-    coin_type: TypeInfo,
+    cash_out: Option<u64>
   }
 
   struct CrashPointCalculateEvent has drop, store {
@@ -82,8 +78,7 @@ module zion::crash {
 
   struct WinningsPaidToPlayerEvent has drop, store {
     player: address,
-    winnings: u64,
-    coin_type: TypeInfo,
+    winnings: u64
   }
 
   /*
@@ -94,7 +89,7 @@ module zion::crash {
   fun init_module(admin: &signer) {
     let (resource_account_signer, signer_cap) = account::create_resource_account(admin, SEED);
 
-    coin::register<CASH>(&resource_account_signer);
+    coin::register<AptosCoin>(&resource_account_signer);
 
     move_to<State>(
       &resource_account_signer,
@@ -198,30 +193,16 @@ module zion::crash {
   * @param player - the signer of the player
   * @param bet_amount - the amount of the bet
   */
-  public entry fun place_bet<CoinType>(
+  public entry fun place_bet(
     player: &signer,
     bet_amount: u64
   ) acquires State {
-    let coin_info = type_info::type_of<CoinType>();
-
-    assert!(
-      coin_registry::is_allowed_coin(coin_info), 
-      E_NOT_ALLOWED_COIN
-    );
-
-    if (!coin::is_account_registered<CoinType>(signer::address_of(player))) {
-      coin::register<CoinType>(player);
-    };
-
     let state = borrow_global_mut<State>(get_resource_address());
 
     assert!(option::is_some(&state.current_game), ENoGameExists);
 
     let game_mut_ref = option::borrow_mut(&mut state.current_game);
-    assert!(
-      timestamp::now_microseconds() < game_mut_ref.start_time_ms, 
-      EGameStarted
-    );
+    assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
 
     event::emit_event(
       &mut state.bet_placed_events,
@@ -234,13 +215,12 @@ module zion::crash {
     let new_bet = Bet {
       player: signer::address_of(player),
       bet_amount,
-      cash_out: option::none(),
-      coin_type: coin_info,
+      cash_out: option::none()
     };
     simple_map::add(&mut game_mut_ref.bets, signer::address_of(player), new_bet);
     
-    let bet_coin = coin::withdraw<CoinType>(player, bet_amount);
-    liquidity_pool::put_reserve_coins<CoinType>(bet_coin);
+    let bet_coin = coin::withdraw(player, bet_amount);
+    liquidity_pool::put_reserve_coins(bet_coin);
   }
 
 
@@ -249,9 +229,11 @@ module zion::crash {
   * @param player - the signer of the player
   */
   public entry fun cash_out(
+    admin: &signer,
     player: address,
     cash_out: u64
   ) acquires State {
+    assert_user_is_module_owner(admin);
 
     let state = borrow_global_mut<State>(get_resource_address());
     assert!(option::is_some(&state.current_game), ENoGameExists);
@@ -271,49 +253,6 @@ module zion::crash {
     );
   
     bet.cash_out = option::some(cash_out);
-  }
-
-  fun process_bets_for_coin_type(
-    bets: &vector<(address, Bet)>,
-    crash_point: u64,
-    coin_type: TypeInfo,
-    state: &mut State
-) acquires LiquidityPool {
-    let num_bets = vector::length(bets);
-
-    let mut i = 0;
-    while (i < num_bets) {
-        let (better, bet) = *vector::borrow(bets, i);
-
-        let winnings = determine_win(&bet, crash_point);
-
-        if (winnings > 0) {
-            // Match the coin_type to known coin types
-            if (coin_type == type_info::type_of<CASH>()) {
-                // Handle CASH payouts
-                let winnings_coin = liquidity_pool::extract_reserve_coins<CASH>(winnings);
-                coin::deposit<CASH>(better, winnings_coin);
-            } else if (coin_type == type_info::type_of<aptos_coin::AptosCoin>()) {
-                // Handle APT payouts
-                let winnings_coin = liquidity_pool::extract_reserve_coins<aptos_coin::AptosCoin>(winnings);
-                coin::deposit<aptos_coin::AptosCoin>(better, winnings_coin);
-            } else {
-                // Handle other coin types or assert an error
-                assert!(false, EUnsupportedCoinType);
-            }
-        }
-
-        event::emit_event(
-            &mut state.winnings_paid_to_player_events,
-            WinningsPaidToPlayerEvent {
-              player: better,
-              winnings,
-            coin_type,
-          }
-      );
-
-      i = i + 1;
-    };
   }
 
   public entry fun reveal_crashpoint_and_distribute_winnings(
@@ -344,6 +283,10 @@ module zion::crash {
       randomness,
       bets: game_bets,
     } = game;
+    let (betters, bets) = simple_map::to_vec_pair(game_bets);
+
+    let number_of_bets = vector::length(&betters);
+    let cleared_betters = 0;
 
     let crash_point = calculate_crash_point_with_randomness(randomness, string::utf8(salted_house_secret));
 
@@ -356,41 +299,27 @@ module zion::crash {
       }
     );
 
-    let (betters, bets) = simple_map::to_vec_pair(game_bets);
-    let number_of_bets = vector::length(&betters);
+    while (cleared_betters < number_of_bets) {
+      let better = vector::pop_back(&mut betters);
+      let bet = vector::pop_back(&mut bets);
 
-    let mut bets_by_coin = simple_map::new<TypeInfo, vector<Bet>>();
+      let winnings = determine_win(bet, crash_point);
 
-    let mut i = 0;
-    while (i < number_of_bets) {
-      let bet = vector::borrow(&bets, i);
-      let better = *vector::borrow(&betters, i);
+      if (winnings > 0) {
+        let winnings_coin = liquidity_pool::extract_reserve_coins(winnings);
 
-      let coin_type = bet.coin_type;
+        coin::deposit(better, winnings_coin);
+      };
 
-      // Initialize the vector for this coin type if it doesn't exist
-      if (!simple_map::contains_key(&bets_by_coin, &coin_type)) {
-        simple_map::add(&mut bets_by_coin, coin_type, vector::empty<(address, Bet)>());
-      }
+      event::emit_event(
+        &mut state.winnings_paid_to_player_events,
+        WinningsPaidToPlayerEvent {
+          player: better,
+          winnings
+        }
+      );
 
-      let bets_vector = simple_map::borrow_mut(&mut bets_by_coin, &coin_type);
-      vector::push_back(bets_vector, (better, *bet));
-
-      i = i + 1;
-    };
-
-    // Process bets for each coin type
-    let coin_types = simple_map::keys(&bets_by_coin);
-    let num_coin_types = vector::length(&coin_types);
-
-    let mut j = 0;
-    while (j < num_coin_types) {
-      let coin_type = *vector::borrow(&coin_types, j);
-      let bets_for_coin = simple_map::borrow(&bets_by_coin, &coin_type);
-
-      process_bets_for_coin_type(bets_for_coin, crash_point, coin_type, &mut state);
-
-      j = j + 1;
+      cleared_betters = cleared_betters + 1;
     };
 
     vector::destroy_empty(betters);
