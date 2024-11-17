@@ -1,15 +1,13 @@
-import { AptosAccount, AptosClient, HexString, Provider, Network } from "aptos";
-import crypto from 'crypto';
+import { AptosAccount, AptosClient, HexString, Provider, Network} from "aptos";
+import crypto, { randomInt } from 'crypto';
 import { calculateCrashPoint } from "./crashPoint";
 import getConfig from "./envManager";
+import 'dotenv/config';
+import { start } from "repl";
 
 require('dotenv').config();
 const { MODULE_ADDRESS,
-  CRASH_RESOURCE_ACCOUNT_ADDRESS,
-  LP_RESOURCE_ACCOUNT_ADDRESS,
-  CASH_RESOURCE_ACCOUNT_ADDRESS,
   ADMIN_ACCOUNT_PRIVATE_KEY,
-  CHAIN_MODE,
   NODE_URL } = getConfig()
 // const MODULE_ADDRESS = process.env.MODULE_ADDRESS as string;
 // const CRASH_RESOURCE_ACCOUNT_ADDRESS = process.env.CRASH_RESOURCE_ACCOUNT_ADDRESS as string;
@@ -95,6 +93,15 @@ export async function handleCashOut(playerAddress: string, cashOutAmount: number
 }
 
 export async function createNewGame(house_secret: string, salt: string): Promise<{ txnHash: string, startTime: number, randomNumber: string } | null> {
+  if(await game_exists()){
+    let {startTime, randomness} = await game_state()
+    return {
+      txnHash: "",
+      startTime,
+      randomNumber: randomness.toString()
+    };
+  }
+  
   const adminAccount = getAdminAccount();
 
   const hashed_salted_house_secret = crypto.createHash("SHA3-256").update(`${house_secret}${salt}`).digest('hex');
@@ -114,33 +121,16 @@ export async function createNewGame(house_secret: string, salt: string): Promise
   );
 
   const tx = await provider.signAndSubmitTransaction(adminAccount, createGameTxn);
-
   const txResult = await client.waitForTransactionWithResult(tx);
-  // console.log(txResult);
-  // console.log((txResult as any).success);
-  let startTime;
-  let randomNumber;
-  (txResult as any).changes.forEach((change: any) => {
-    // console.log(change);
-    if (change.data && change.data.type && change.data.type === `${MODULE_ADDRESS}::crash::State`) {
-      // console.log(JSON.stringify(change.data.data.current_game.vec[0], null, 4));
-      startTime = parseInt(change.data.data.current_game.vec[0].start_time_ms);
-      randomNumber = change.data.data.current_game.vec[0].randomness;
-    }
-  });
+  let {startTime, randomness} = await game_state();
   if ((txResult as any).success === false) {
     console.error("Transaction failed:", txResult);
     return null;
   }
-  // console.log({
-  //   txnHash: txResult.hash,
-  //   startTime, 
-  //   randomNumber
-  // })
   return {
     txnHash: txResult.hash,
     startTime: startTime as unknown as number,
-    randomNumber: randomNumber as unknown as string
+    randomNumber: randomness.toString() as unknown as string
   }
 }
 
@@ -193,6 +183,34 @@ export async function endGame(house_secret: string, salt: string, crashTime: num
   return {
     txnHash: txResult.hash
   }
+}
+
+export async function game_exists(): Promise<boolean> {
+  console.log("Checking If Exists")
+  const payload = {
+    function: process.env.MODULE_ADDRESS+"::crash::game_exists",
+    arguments: [],
+    type_arguments: []
+  };
+
+  let res = await provider.view(payload);
+  console.log(res)
+  let res_indexed = (res[0] as boolean)
+  console.log("Res: "+res)
+  return res_indexed;
+}
+
+export async function game_state(): Promise<{startTime: number, randomness: number}> {
+  const payload = {
+    function: process.env.MODULE_ADDRESS+"::crash::game_state",
+    arguments: [],
+    type_arguments: []
+  };
+
+  let res = await provider.view(payload);
+  let startTime = (res[0] as number);
+  let randomness = (res[1] as number);
+  return {startTime, randomness};
 }
 
 async function test_crashpoint_calculatation() {

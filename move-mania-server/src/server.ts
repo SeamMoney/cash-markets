@@ -24,15 +24,17 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 const portHttps = 8080;
-const aptosClient = new AptosClient(`${process.env.APTOS_NODE}/v1`);
+const aptosClient = new AptosClient(`${process.env.NODE_URL}`);
 // USE FOR PRODUCTION
 import https from 'https';
 import fs from 'fs';
 const CERT_PATH = "/etc/letsencrypt/live/api.zionapi.xyz/fullchain.pem"
 const KEY_PATH = "/etc/letsencrypt/live/api.zionapi.xyz/privkey.pem"
+
 const options = {
-  key: fs.readFileSync(KEY_PATH),
-  cert: fs.readFileSync(CERT_PATH)
+  // key: fs.readFileSync(KEY_PATH),
+  // cert: fs.readFileSync(CERT_PATH)
+  rejectUnauthorized: true
 };
 const httpsServer = https.createServer(options, app);
 httpsServer.listen(portHttps, () => {

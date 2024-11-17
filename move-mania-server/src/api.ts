@@ -39,8 +39,8 @@ import fs from 'fs';
 const CERT_PATH = "/etc/letsencrypt/live/api.zionapi.xyz/fullchain.pem";
 const KEY_PATH = "/etc/letsencrypt/live/api.zionapi.xyz/privkey.pem";
 const options = {
-    key: fs.readFileSync(KEY_PATH),
-    cert: fs.readFileSync(CERT_PATH)
+    // key: fs.readFileSync(KEY_PATH),
+    // cert: fs.readFileSync(CERT_PATH)
 };
 const httpsServer = https.createServer(options, app);
 httpsServer.listen(portHttps, () => {
