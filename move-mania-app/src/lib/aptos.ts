@@ -128,7 +128,7 @@ export async function registerForCASH(userWallet: Account) {
     sender: userWallet.accountAddress,
     withFeePayer: true,
     data: {
-      function: `${MODULE_ADDRESS}::managed_coin::register`,
+      function: `0x1::managed_coin::register`,
       typeArguments: [BETTING_COIN_TYPE_ARG],
       functionArguments: [],
     },
