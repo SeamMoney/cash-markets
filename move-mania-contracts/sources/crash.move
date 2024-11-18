@@ -521,7 +521,7 @@ module zion::crash {
         assert!(timestamp::now_microseconds() >= game_mut_ref.start_time_ms, EGameNotStarted);
 
         let game = option::borrow_mut(&mut state.current_game);
-        assert!(vector::length(&simple_map::keys(&game.bets)) > 0, ENotAllWinningsDistributed);
+        assert!(vector::length(&simple_map::keys(&game.bets)) == 0, ENotAllWinningsDistributed);
         option::extract(&mut state.current_game);
     }
 
