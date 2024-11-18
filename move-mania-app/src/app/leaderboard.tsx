@@ -43,7 +43,7 @@ export default function Leaderboard() {
         const balances = await Promise.all(
             users.map(async (user) => {
                 try {
-                    const balance = await getBalance(user.private_key, `${process.env.CASH_MODULE_ADDRESS}::cash::CASH`);
+                    const balance = await getBalance(user.private_key, `${process.env.MODULE_ADDRESS}::z_apt::ZAPT`);
                     return {
                         username: user.username,
                         public_address: user.public_address,
