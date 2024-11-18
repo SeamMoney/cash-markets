@@ -11,6 +11,8 @@ import crypto from 'crypto';
  * @param salt The salt provided by the server to ensure the random number is not predictable
  */
 export function calculateCrashPoint(randomNumber: string, salt: string) {
+  console.log("Random Number: "+randomNumber)
+
   const hash = crypto.createHash("SHA3-256");
   // decodeURIComponent('616263'.replace(/\s+/g, '').replace(/[0-9a-f]{2}/g, '%$&'));
 

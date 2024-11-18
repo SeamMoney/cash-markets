@@ -97,6 +97,7 @@ export async function handleCashOut(playerAddress: string, cashOutAmount: number
 
 export async function createNewGame(house_secret: string, salt: string): Promise<{ txnHash: string, startTime: number, randomNumber: string } | null> {
   if(await game_exists()){
+    console.log("Game Exists")
     let {startTime, randomness} = await game_state()
     return {
       txnHash: "",
@@ -149,7 +150,7 @@ export async function endGame(house_secret: string, salt: string, crashTime: num
   }
 
 
-  const createGameTxn = await provider.generateTransaction(
+  const reveal_crashpoint_payload = await provider.generateTransaction(
     adminAccount.address(),
     {
       function: `${MODULE_ADDRESS}::crash::reveal_crashpoint`,
@@ -162,8 +163,14 @@ export async function endGame(house_secret: string, salt: string, crashTime: num
     TRANSACTION_OPTIONS
   );
 
-  const tx = await provider.signAndSubmitTransaction(adminAccount, createGameTxn);
-  const txResult = await client.waitForTransactionWithResult(tx);
+  const reveal_tx = await provider.signAndSubmitTransaction(adminAccount, reveal_crashpoint_payload);
+  const reveal_res = await client.waitForTransactionWithResult(reveal_tx);
+
+  if ((reveal_res as any).success === false) {
+    console.log("REVEAL FAILED")
+    console.log(reveal_res)
+    return null;
+  }
 
 
   const distribute_winnings_payload = await provider.generateTransaction(
@@ -178,17 +185,37 @@ export async function endGame(house_secret: string, salt: string, crashTime: num
 
   const distribute_winnings_tx = await provider.signAndSubmitTransaction(adminAccount, distribute_winnings_payload);
   const distribute_res = await client.waitForTransactionWithResult(distribute_winnings_tx);
-  
+
   if ((distribute_res as any).success === false) {
     console.log("DISTRIBUTE WINNINGS FAILED")
     console.log(distribute_res)
     return null;
   }
+
+  const shutdown_payload = await provider.generateTransaction(
+    adminAccount.address(),
+    {
+      function: `${MODULE_ADDRESS}::crash::shutdown_game`,
+      type_arguments: [],
+      arguments: []
+    },
+    TRANSACTION_OPTIONS
+  );
+
+  const shutdown_tx = await provider.signAndSubmitTransaction(adminAccount, shutdown_payload);
+  const shutdown_res = await client.waitForTransactionWithResult(shutdown_tx);
+
+  if ((shutdown_res as any).success === false) {
+    console.log("SHUTDOWN GAME FAILED")
+    console.log(shutdown_res)
+    return null;
+  }
+
   // console.log({
   //   txnHash: txResult.hash
   // })
   return {
-    txnHash: txResult.hash
+    txnHash: distribute_res.hash
   }
 }
 
