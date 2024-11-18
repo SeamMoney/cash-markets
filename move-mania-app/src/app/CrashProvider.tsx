@@ -119,7 +119,10 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
         });
       }
     });
+  }, [])
 
+  useEffect(() => {
+    
     const logAllEvents = (eventName: string, ...args: any[]) => {
       console.log(`Received ${eventName} event:`, ...args);
     };
