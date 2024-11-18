@@ -2,6 +2,9 @@ import WithPWA from "next-pwa";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    appDir: true,
+  },
   reactStrictMode: false,
   images: {
     remotePatterns: [
@@ -24,6 +27,7 @@ const nextConfig = {
     ADMIN_ACCOUNT_PRIVATE_KEY: process.env.ADMIN_ACCOUNT_PRIVATE_KEY,
     FUNDING_ACCOUNT_PRIVATE_KEY: process.env.FUNDING_ACCOUNT_PRIVATE_KEY,
     ADMIN_ACCOUNTS: process.env.ADMIN_ACCOUNTS,
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   },
 };
 

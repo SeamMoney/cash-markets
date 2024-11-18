@@ -617,4 +617,22 @@ module zion::crash {
       }
     }
   }
+
+  inline fun assert_user_is_module_owner(user: &signer) {
+    assert!(signer::address_of(user) == @zion, EUserIsNotModuleOwner);
+  }
+
+  #[view]
+  public fun game_exists(): bool acquires State {
+    let state = borrow_global_mut<State>(get_resource_address());
+    return !option::is_none(&state.current_game)
+  }
+
+  #[view]
+  public fun game_state(): (u64, u64) acquires State {
+    assert!(game_exists(), 0);
+    let state = borrow_global_mut<State>(get_resource_address());
+    let game = option::borrow(&state.current_game);
+    return (game.start_time_ms, game.randomness)
+  }
 }

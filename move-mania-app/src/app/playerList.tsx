@@ -8,6 +8,7 @@ import { GameStatus } from "./controlCenter";
 import { cn } from "@/lib/utils";
 
 import { socket } from "@/lib/socket";
+import { getCashoutMultiplier } from "@/lib/cashOutStore";
 import { gameStatusContext } from "./CrashProvider";
 
 export type PlayerState = {

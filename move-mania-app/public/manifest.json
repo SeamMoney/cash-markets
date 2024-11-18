@@ -1,6 +1,6 @@
 {
-  "name": "Zion Bets",
-  "short_name": "ZION",
+  "name": "Cash Markets",
+  "short_name": "CASH",
   "theme_color": "#000000",
   "background_color": "#000000",
   "display": "standalone",
@@ -9,7 +9,7 @@
   "start_url": "./?mode=standalone",
   "icons": [
     {
-      "src": "icon-512x512.png",
+      "src": "CASH.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable any"
