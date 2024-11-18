@@ -62,7 +62,8 @@ export async function transferApt(userPrivateKey: string, amount: number, toAddr
   });
 
   const fundingAccount = Account.fromPrivateKey({
-    privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
   });
 
   const transaction = await aptos.transaction.build.simple({
@@ -120,8 +121,10 @@ export async function registerForAPT(userAccount: AptosAccount) {
 }
 
 export async function registerForCASH(userWallet: Account) {
+  console.log("Registering For ZAPT for Acc: "+userWallet.accountAddress.toString())
   const fundingAccount = Account.fromPrivateKey({
-    privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+    // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
   });
 
   const transaction = await aptos.transaction.build.simple({
@@ -247,7 +250,8 @@ async function fundAccountWithAdmin(userAccount: string, amount: number) {
 
 export async function fundAccountWithGas(userAddress: string) {
   console.log('funding account', userAddress);
-  const fundingAccount = await getUserAccount(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '');
+  // privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+  const fundingAccount = await getUserAccount('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51');
   const transfer = await coinClient.transfer(
     fundingAccount,
     userAddress,
@@ -296,7 +300,8 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
   });
 
   const fundingAccount = Account.fromPrivateKey({
-    privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+    // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
   });
 
   const transaction = await aptos.transaction.build.simple({
@@ -336,7 +341,8 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
     });
 
     const fundingAccount = Account.fromPrivateKey({
-      privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+      privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+      // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
     });
 
     console.log("User wallet address:", userWallet.accountAddress.toString());
