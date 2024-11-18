@@ -52,7 +52,7 @@ function getConfig(): EnvConfig {
     const config: EnvConfig = {
         NODE_URL: APTOS_NODE,
         CHAIN_MODE: CHAIN_MODE,
-        ZION_API_URL: DEV_MODE === 'local' ? 'http://localhost:3008' : 'https://api.zionapi.xyz',
+        ZION_API_URL: DEV_MODE === 'local' ? 'http://localhost:3008' : 'https://api.cash.markets',
         ZION_APP_URL: DEV_MODE === 'local' ? 'http://localhost:3000' : 'https://app.zion.bet',
         DEV_MODE: DEV_MODE,
         ADMIN_ACCOUNT_PRIVATE_KEY: ADMIN_ACCOUNT_PRIVATE_KEY as string,

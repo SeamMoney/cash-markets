@@ -24,7 +24,7 @@ function getConfig(): EnvConfig {
 
     const config: EnvConfig = {
         NODE_URL: NODE_URL,
-        ZION_API_URL: DEV_MODE === 'local' ? 'http://localhost:3008' : 'https://api.zionapi.xyz',
+        ZION_API_URL: DEV_MODE === 'local' ? 'http://localhost:3008' : 'https://api.cash.markets',
         ZION_APP_URL: DEV_MODE === 'local' ? 'http://localhost:3000' : 'https://app.zion.bet',
         ADMIN_ACCOUNT_PRIVATE_KEY: ADMIN_ACCOUNT_PRIVATE_KEY as string,
         MODULE_ADDRESS: MODULE_ADDRESS as string,

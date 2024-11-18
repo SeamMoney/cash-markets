@@ -28,8 +28,8 @@ const aptosClient = new AptosClient(`${process.env.NODE_URL}`);
 // USE FOR PRODUCTION
 import https from 'https';
 import fs from 'fs';
-const CERT_PATH = "/etc/letsencrypt/live/api.zionapi.xyz/fullchain.pem"
-const KEY_PATH = "/etc/letsencrypt/live/api.zionapi.xyz/privkey.pem"
+const CERT_PATH = "/etc/letsencrypt/live/api.cash.markets/fullchain.pem"
+const KEY_PATH = "/etc/letsencrypt/live/api.cash.markets/privkey.pem"
 
 const options = {
   // key: fs.readFileSync(KEY_PATH),
@@ -43,7 +43,7 @@ httpsServer.listen(portHttps, () => {
 });
 const io = new Server(httpsServer, {
   cors: {
-    origin: process.env.ZION_APP_URL ? [process.env.ZION_APP_URL, "http://localhost:3000", "https://zionapi.xyz", "https://api.zionapi.xyz"] : true,
+    origin: process.env.ZION_APP_URL ? [process.env.ZION_APP_URL, "http://localhost:3000", "https://cash.markets", "https://api.cash.markets"] : true,
     credentials: true,
   },
   connectionStateRecovery: {}

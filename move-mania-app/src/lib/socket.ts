@@ -3,7 +3,7 @@
 import { Socket, io } from "socket.io-client";
 import { BetData, CashOutData, ChatMessage, SOCKET_EVENTS } from "./types";
 
-export const socket = io(process.env.ZION_API_URL ? "https://api.zionapi.xyz:8080" : "http://localhost:8080", {
+export const socket = io(process.env.ZION_API_URL ? "https://api.cash.markets:8080" : "http://localhost:8080", {
   auth: {
     token: process.env.ZION_API_KEY || "",
   },
