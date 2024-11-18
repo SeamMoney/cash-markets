@@ -32,6 +32,7 @@ module zion::crash {
   const EHashesDoNotMatch: u64 = 7;
   const EGameHasntEnded: u64 = 8;
   const ENotAllWinningsDistributed: u64 = 9;
+  const EBetAlreadyExists: u64 = 10;
   
   struct State has key {
     signer_cap: account::SignerCapability,
@@ -239,6 +240,9 @@ module zion::crash {
     let game_mut_ref = option::borrow_mut(&mut state.current_game);
     assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
 
+    let does_bet_exist = simple_map::contains_key(&game_mut_ref.bets, &signer::address_of(player));
+    assert!(does_bet_exist, EBetAlreadyExists);
+
     event::emit_event(
       &mut state.bet_placed_events,
       BetPlacedEvent {
@@ -282,6 +286,9 @@ module zion::crash {
 
     let game_mut_ref = option::borrow_mut(&mut state.current_game);
     assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
+
+    let does_bet_exist = simple_map::contains_key(&game_mut_ref.bets, &signer::address_of(player));
+    assert!(does_bet_exist, EBetAlreadyExists);
 
     event::emit_event(
       &mut state.bet_placed_events,
