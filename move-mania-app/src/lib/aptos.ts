@@ -261,7 +261,7 @@ export async function mintCASH(userAddress: string, amount: number) {
   const txn = await provider.generateTransaction(
     adminAccount.address(),
     {
-      function: `${MODULE_ADDRESS}::cash::mint`,
+      function: `${MODULE_ADDRESS}::z_apt::mint`,
       type_arguments: [],
       arguments: [
         Math.floor(amount * APT),
