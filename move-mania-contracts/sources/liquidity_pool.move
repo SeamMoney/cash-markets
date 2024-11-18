@@ -265,7 +265,7 @@ module zion::liquidity_pool {
     coin::merge(&mut liquidity_pool.reserve_coin, supplied_coin);
 
     let lp_coin = coin::mint(amount_lp_coins_to_mint, &liquidity_pool.lp_coin_mint_cap);
-    coin::register<LPCoinType>(supplier);
+    coin::register<LPCoinType>(supplier); //May not work, may need to move to managed_coin::register
     coin::deposit(signer::address_of(supplier), lp_coin);
   }
 

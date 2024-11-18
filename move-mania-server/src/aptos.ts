@@ -14,12 +14,15 @@ const { MODULE_ADDRESS,
 // const LP_RESOURCE_ACCOUNT_ADDRESS = process.env.LP_RESOURCE_ACCOUNT_ADDRESS as string;
 // const ADMIN_ACCOUNT_PRIVATE_KEY = process.env.ADMIN_ACCOUNT_PRIVATE_KEY as string;
 
-const RPC_URL = 'https://fullnode.testnet.aptoslabs.com';
-const FAUCET_URL = 'https://faucet.testnet.aptoslabs.com'
+// const RPC_URL = 'https://fullnode.testnet.aptoslabs.com';
+// const FAUCET_URL = 'https://faucet.testnet.aptoslabs.com'
+
+const BETTING_COIN_TYPE_ARG = `${MODULE_ADDRESS}::z_apt::ZAPT`
+const LIQ_COIN_TYPE_ARG = `${MODULE_ADDRESS}::new_lp_tokens::ZAPT_DEVNET_LP`
 
 const client = new AptosClient(NODE_URL);
 const provider = new Provider({
-  fullnodeUrl: RPC_URL,
+  fullnodeUrl: NODE_URL,
 })
 
 const TRANSACTION_OPTIONS = {
@@ -35,7 +38,7 @@ function delay(ms: number) {
 const fromHexString = (hexString: any) =>
   Uint8Array.from(hexString.match(/.{1,2}/g).map((byte: any) => parseInt(byte, 16)));
 
-function getAdminAccount() {
+export function getAdminAccount() {
   return new AptosAccount(
     new HexString(ADMIN_ACCOUNT_PRIVATE_KEY).toUint8Array()
   );
@@ -120,6 +123,8 @@ export async function createNewGame(house_secret: string, salt: string): Promise
     TRANSACTION_OPTIONS
   );
 
+
+
   const tx = await provider.signAndSubmitTransaction(adminAccount, createGameTxn);
   const txResult = await client.waitForTransactionWithResult(tx);
   let {startTime, randomness} = await game_state();
@@ -147,7 +152,7 @@ export async function endGame(house_secret: string, salt: string, crashTime: num
   const createGameTxn = await provider.generateTransaction(
     adminAccount.address(),
     {
-      function: `${MODULE_ADDRESS}::crash::reveal_crashpoint_and_distribute_winnings`,
+      function: `${MODULE_ADDRESS}::crash::reveal_crashpoint`,
       type_arguments: [],
       arguments: [
         Uint8Array.from(Buffer.from(`${house_secret}${salt}`)),
@@ -158,23 +163,25 @@ export async function endGame(house_secret: string, salt: string, crashTime: num
   );
 
   const tx = await provider.signAndSubmitTransaction(adminAccount, createGameTxn);
-
   const txResult = await client.waitForTransactionWithResult(tx);
-  // console.log(txResult);
-  // console.log((txResult as any).success);
-  // let startTime;
-  // let randomNumber;
-  // (txResult as any).changes.forEach((change: any) => {
-  //   // console.log(change);
-  //   if (change.data && change.data.type && change.data.type === `${MODULE_ADDRESS}::crash::State`){
-  //     console.log(JSON.stringify(change.data.data.current_game.vec[0], null, 4));
-  //     startTime = parseInt(change.data.data.current_game.vec[0].start_time_ms);
-  //     randomNumber = parseInt(change.data.data.current_game.vec[0].randomness);
-  //   }
-  // });
-  // console.log(txResult);
-  if ((txResult as any).success === false) {
 
+
+  const distribute_winnings_payload = await provider.generateTransaction(
+    adminAccount.address(),
+    {
+      function: `${MODULE_ADDRESS}::crash::distribute_winnings`,
+      type_arguments: [BETTING_COIN_TYPE_ARG, LIQ_COIN_TYPE_ARG],
+      arguments: []
+    },
+    TRANSACTION_OPTIONS
+  );
+
+  const distribute_winnings_tx = await provider.signAndSubmitTransaction(adminAccount, distribute_winnings_payload);
+  const distribute_res = await client.waitForTransactionWithResult(distribute_winnings_tx);
+  
+  if ((distribute_res as any).success === false) {
+    console.log("DISTRIBUTE WINNINGS FAILED")
+    console.log(distribute_res)
     return null;
   }
   // console.log({

@@ -1,9 +1,9 @@
 ---
 profiles:
   default:
-    network: Testnet
-    private_key: "0xb1947479fc8a5333ae71bab92a05a84c6acf129b454770ed69e2c738da97a7f8"
-    public_key: "0xad591eed97bd6a60cfb5031a9324901f99da29bde64ea63ca35d0039f05f8287"
-    account: 00a1d24f78fc59a58e854982b6319545c385b4ebf8cb2d53fe64646ca6b64f6a
-    rest_url: "https://fullnode.testnet.aptoslabs.com"
-    faucet_url: "https://faucet.testnet.aptoslabs.com"
+    network: Devnet
+    private_key: "0x88b1bb1e1ca39a041522972daf46d0f54d593ded001773e1054263c0f1e70a60"
+    public_key: "0x26531de929d7682cfbf4557990910058702a4d5d7e66941bfe0cc6c57c281bda"
+    account: ef6d14f0984b999c358d67950e1ab211c762aac7fc0432f0947dbcfcbb749f1c
+    rest_url: "https://fullnode.devnet.aptoslabs.com"
+    faucet_url: "https://faucet.devnet.aptoslabs.com"

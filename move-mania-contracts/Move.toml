@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-zion = "0x00a1d24f78fc59a58e854982b6319545c385b4ebf8cb2d53fe64646ca6b64f6a"
+zion = "ef6d14f0984b999c358d67950e1ab211c762aac7fc0432f0947dbcfcbb749f1c"
 std = "0x1"
 aptos_std = "0x1"
 aptos_framework = "0x1"
