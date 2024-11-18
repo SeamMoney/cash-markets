@@ -310,7 +310,7 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
     data: {
       function: `${MODULE_ADDRESS}::${MODULE_NAME}::place_bet`,
       typeArguments: [BETTING_COIN_TYPE_ARG, LIQ_COIN_TYPE_ARG],
-      functionArguments: [Math.floor(betData.betAmount * APT)],
+      functionArguments: [Math.floor(betData.betAmount * APT), BETTING_COIN_TYPE_ARG],
     },
   })
 
