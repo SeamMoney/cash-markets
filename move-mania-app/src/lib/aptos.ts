@@ -14,9 +14,11 @@ const CASH_RESOURCE_ACCOUNT_ADDRESS = process.env.CASH_RESOURCE_ACCOUNT_ADDRESS 
 import { socket } from "@/lib/socket";
 import { SOCKET_EVENTS } from "@/lib/types";
 
+const BETTING_COIN_TYPE_ARG = `${MODULE_ADDRESS}::z_apt::ZAPT`
+const LIQ_COIN_TYPE_ARG = `${MODULE_ADDRESS}::new_lp_tokens::ZAPT_DEVNET_LP`
 
-export const RPC_URL = 'https://fullnode.testnet.aptoslabs.com';
-const FAUCET_URL = 'https://faucet.testnet.aptoslabs.com';
+export const RPC_URL = 'https://fullnode.devnet.aptoslabs.com';
+const FAUCET_URL = 'https://faucet.devnet.aptoslabs.com';
 
 const client = new AptosClient(RPC_URL);
 const coinClient = new CoinClient(client);
@@ -297,7 +299,7 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
     withFeePayer: true,
     data: {
       function: `${MODULE_ADDRESS}::${MODULE_NAME}::place_bet`,
-      typeArguments: [],
+      typeArguments: [BETTING_COIN_TYPE_ARG, LIQ_COIN_TYPE_ARG],
       functionArguments: [Math.floor(betData.betAmount * APT)],
     },
   })
@@ -392,32 +394,26 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
   }
 }
 
+
+
 export async function getDeposits() {
   try {
-    const response = await provider.getEventsByEventHandle(
-      LP_RESOURCE_ACCOUNT_ADDRESS,
-      `${MODULE_ADDRESS}::liquidity_pool::State`,
-      'deposit_events',
-      {
-        limit: 100,
-      }
-    );
+    const response = await aptos.getModuleEventsByEventType({
+      eventType: `${MODULE_ADDRESS}::liquidity_pool::DepositEvent` as any
+    })
     return response;
   } catch (e) {
     console.error(e);
   }
 }
 
+
+
 export async function getWithdrawals() {
   try {
-    const response = await provider.getEventsByEventHandle(
-      LP_RESOURCE_ACCOUNT_ADDRESS,
-      `${MODULE_ADDRESS}::liquidity_pool::State`,
-      'withdraw_events',
-      {
-        limit: 100,
-      }
-    );
+    const response = await aptos.getModuleEventsByEventType({
+      eventType: `${MODULE_ADDRESS}::liquidity_pool::WithdrawEvent` as any
+    })
     return response;
   } catch (e) {
     console.error(e);
@@ -426,14 +422,9 @@ export async function getWithdrawals() {
 
 export async function getExtracts() {
   try {
-    const response = await provider.getEventsByEventHandle(
-      LP_RESOURCE_ACCOUNT_ADDRESS,
-      `${MODULE_ADDRESS}::liquidity_pool::State`,
-      'extract_events',
-      {
-        limit: 100,
-      }
-    );
+    const response = await aptos.getModuleEventsByEventType({
+      eventType: `${MODULE_ADDRESS}::liquidity_pool::ExtractEvent` as any
+    })
     return response;
   } catch (e) {
     console.error(e);
@@ -442,35 +433,30 @@ export async function getExtracts() {
 
 export async function getPuts() {
   try {
-    const response = await provider.getEventsByEventHandle(
-      LP_RESOURCE_ACCOUNT_ADDRESS,
-      `${MODULE_ADDRESS}::liquidity_pool::State`,
-      'put_events',
-      {
-        limit: 100,
-      }
-    );
+    const response = await aptos.getModuleEventsByEventType({
+      eventType: `${MODULE_ADDRESS}::liquidity_pool::PutEvent` as any
+    })
     return response;
   } catch (e) {
     console.error(e);
   }
 }
 
-export async function getLocks() {
-  try {
-    const response = await provider.getEventsByEventHandle(
-      LP_RESOURCE_ACCOUNT_ADDRESS,
-      `${MODULE_ADDRESS}::liquidity_pool::State`,
-      'lock_events',
-      {
-        limit: 100,
-      }
-    );
-    return response;
-  } catch (e) {
-    console.error(e);
-  }
-}
+// export async function getLocks() {
+//   try {
+//     const response = await provider.getEventsByEventHandle(
+//       LP_RESOURCE_ACCOUNT_ADDRESS,
+//       `${MODULE_ADDRESS}::liquidity_pool::State`,
+//       'lock_events',
+//       {
+//         limit: 100,
+//       }
+//     );
+//     return response;
+//   } catch (e) {
+//     console.error(e);
+//   }
+// }
 
 export async function getPoolAptSupply(version?: string) {
   const response = await provider.view(
@@ -489,7 +475,7 @@ export async function getLPCoinSupply(version?: string) {
   const response = await provider.view(
     {
       function: `${MODULE_ADDRESS}::liquidity_pool::get_lp_coin_supply`,
-      type_arguments: [],
+      type_arguments: [LIQ_COIN_TYPE_ARG],
       arguments: [],
     },
     version
@@ -498,18 +484,18 @@ export async function getLPCoinSupply(version?: string) {
   return parseInt(response[0].toString()) / APT;
 }
 
-export async function getLockedLPCoinSupply(version?: string) {
-  const response = await provider.view(
-    {
-      function: `${MODULE_ADDRESS}::liquidity_pool::get_amount_of_locked_liquidity`,
-      type_arguments: [],
-      arguments: [],
-    },
-    version
-  );
+// export async function getLockedLPCoinSupply(version?: string) {
+//   const response = await provider.view(
+//     {
+//       function: `${MODULE_ADDRESS}::liquidity_pool::get_amount_of_locked_liquidity`,
+//       type_arguments: [],
+//       arguments: [],
+//     },
+//     version
+//   );
 
-  return parseInt(response[0].toString()) / APT;
-}
+//   return parseInt(response[0].toString()) / APT;
+// }
 
 export async function supplyPool(user: User, amount: number) {
   const userAccount = await getUserAccount(user.private_key);
@@ -518,7 +504,7 @@ export async function supplyPool(user: User, amount: number) {
     userAccount.address(),
     {
       function: `${MODULE_ADDRESS}::liquidity_pool::supply_liquidity`,
-      type_arguments: [],
+      type_arguments: [BETTING_COIN_TYPE_ARG, LIQ_COIN_TYPE_ARG],
       arguments: [
         Math.floor(amount * APT),
       ],
@@ -547,7 +533,7 @@ export async function withdrawPool(user: User, amount: number) {
     userAccount.address(),
     {
       function: `${MODULE_ADDRESS}::liquidity_pool::remove_liquidity`,
-      type_arguments: [],
+      type_arguments: [BETTING_COIN_TYPE_ARG, LIQ_COIN_TYPE_ARG],
       arguments: [
         Math.floor(amount * APT),
       ],
@@ -569,10 +555,10 @@ export async function withdrawPool(user: User, amount: number) {
   };
 }
 
-export async function getCrashCalculationEvents() {
-  const res = await provider.getEventsByCreationNumber(
-    '0x7e37543a6d9474eee8419b500668e1d460f2f46f82b0ff74031a460e470f5def',
-    "5"
-  );
-  return res;
-}
+// export async function getCrashCalculationEvents() {
+//   const res = await provider.getEventsByCreationNumber(
+//     '0x7e37543a6d9474eee8419b500668e1d460f2f46f82b0ff74031a460e470f5def',
+//     "5"
+//   );
+//   return res;
+// }
