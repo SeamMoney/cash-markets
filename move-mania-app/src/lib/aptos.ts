@@ -197,7 +197,7 @@ export async function createAptosKeyPair(): Promise<{
       senderAuthenticator,
     });
 
-    console.log("Create TX: "+committedTransaction.hash)
+    //console.log("Create TX: "+committedTransaction.hash)
 
     await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
@@ -217,7 +217,7 @@ export async function createAptosKeyPair(): Promise<{
       senderAuthenticator: fundSenderAuthenticator,
     });
 
-    console.log("Fund Tx: "+fundCommittedTransaction.hash)
+    //console.log("Fund Tx: "+fundCommittedTransaction.hash)
 
     await aptos.transaction.waitForTransaction({ transactionHash: fundCommittedTransaction.hash });
 
@@ -249,7 +249,7 @@ async function fundAccountWithAdmin(userAccount: string, amount: number) {
 }
 
 export async function fundAccountWithGas(userAddress: string) {
-  console.log('funding account', userAddress);
+  //console.log('funding account', userAddress);
   // privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
   const fundingAccount = await getUserAccount('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51');
   const transfer = await coinClient.transfer(
@@ -261,7 +261,7 @@ export async function fundAccountWithGas(userAddress: string) {
     }
   );
   const fundTx = await client.waitForTransactionWithResult(transfer, { checkSuccess: true });
-  console.log('fund', fundTx);
+  //console.log('fund', fundTx);
 }
 
 export async function mintCASH(userAddress: string, amount: number) {
@@ -334,7 +334,7 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
 }
 
 export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) {
-  console.log("cashOut function called with:", { userPrivateKey: userPrivateKey.slice(0, 5) + '...', cashOutData });
+  //console.log("cashOut function called with:", { userPrivateKey: userPrivateKey.slice(0, 5) + '...', cashOutData });
   try {
     const userWallet = Account.fromPrivateKey({
       privateKey: new Ed25519PrivateKey(userPrivateKey)
@@ -345,7 +345,7 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
       // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
     });
 
-    console.log("User wallet address:", userWallet.accountAddress.toString());
+    //console.log("User wallet address:", userWallet.accountAddress.toString());
 
     const transaction = await aptos.transaction.build.simple({
       sender: userWallet.accountAddress.toString(),
@@ -364,9 +364,9 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
     const replacer = (key: string, value: any) =>
       typeof value === 'bigint' ? value.toString() : value;
 
-    console.log("Transaction built:", JSON.stringify(transaction, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-      , 2));
+    //console.log("Transaction built:", JSON.stringify(transaction, (key, value) =>
+      // typeof value === 'bigint' ? value.toString() : value
+      // , 2));
 
     const senderAuthenticator = aptos.transaction.sign({ signer: userWallet, transaction });
     const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({ signer: fundingAccount, transaction });
@@ -376,13 +376,13 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
       feePayerAuthenticator: feePayerSignerAuthenticator,
     });
 
-    console.log("Transaction submitted:", committedTransaction.hash);
+    //console.log("Transaction submitted:", committedTransaction.hash);
 
     const txResult = await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
-    console.log("Transaction result:", JSON.stringify(txResult, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-      , 2));
+    //console.log("Transaction result:", JSON.stringify(txResult, (key, value) =>
+      // typeof value === 'bigint' ? value.toString() : value
+      // , 2));
 
     if (!txResult.success) {
       console.error("Transaction failed:", txResult);

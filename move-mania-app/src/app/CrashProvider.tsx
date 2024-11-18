@@ -45,12 +45,12 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
   const [playerList, setPlayerList] = useState<PlayerState[]>([]);
 
   const onConnect = useCallback(() => {
-    console.log("socket connected");
+    //console.log"socket connected");
     setIsConnected(true);
   }, []);
 
   const updatePlayerList = useCallback((newPlayerList: React.SetStateAction<PlayerState[]>) => {
-    console.log("Updating playerList:", newPlayerList);
+    //console.log"Updating playerList:", newPlayerList);
     setPlayerList(newPlayerList);
   }, []);
 
@@ -87,8 +87,8 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const onCashOutConfirmed = useCallback((cashOutData: CashOutData) => {
-    console.log("onCashOutConfirmed called with data:", cashOutData);
-    console.log("Before updating playerList:", playerList);
+    //console.log"onCashOutConfirmed called with data:", cashOutData);
+    //console.log"Before updating playerList:", playerList);
     setLatestAction(Date.now());
     setPlayerList((prevList) => {
       const updatedList = prevList.map((player) =>
@@ -96,15 +96,15 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
           ? { ...player, cashOutMultiplier: cashOutData.cashOutMultiplier }
           : player
       );
-      console.log("After updating playerList:", updatedList);
+      //console.log"After updating playerList:", updatedList);
       return updatedList;
     });
     socket.emit(SOCKET_EVENTS.CASH_OUT_CONFIRMED, cashOutData);
-    console.log("JUST EMITTED CASH OUT CONFIRMED:", cashOutData);
+    // //console.log"JUST EMITTED CASH OUT CONFIRMED:", cashOutData);
   }, []);
 
   useEffect(() => {
-    console.log("CrashProvider updating game status:", gameStatus);
+    // //console.log"CrashProvider updating game status:", gameStatus);
     getSession().then((session) => {
       if (session && session.user && session.user.email) {
         setUpAndGetUser({
@@ -124,7 +124,7 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     
     const logAllEvents = (eventName: string, ...args: any[]) => {
-      console.log(`Received ${eventName} event:`, ...args);
+      //console.log`Received ${eventName} event:`, ...args);
     };
 
     socket.onAny(logAllEvents);
@@ -147,7 +147,7 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
   }, [onConnect, onDisconnect, onRoundStart, onBetConfirmed, onCashOutConfirmed, onRoundResult]);
 
   useEffect(() => {
-    console.log("CrashProvider updating game status:", gameStatus);
+    //console.log"CrashProvider updating game status:", gameStatus);
 
     if (account && latestAction) {
       getUser(account.email).then((updatedUser) => {
@@ -166,7 +166,7 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
   }, [latestAction, account]);
 
   useEffect(() => {
-    console.log("CrashProvider updating game status:", gameStatus);
+    //console.log"CrashProvider updating game status:", gameStatus);
     const fetchGameStatus = async () => {
       try {
         const game = await getCurrentGame();
@@ -219,9 +219,9 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isInStandaloneMode()) {
-      console.log('This is running as standalone.');
+      //console.log'This is running as standalone.');
     } else {
-      console.log('This is not running as standalone.');
+      //console.log'This is not running as standalone.');
       setShowPWAInstall(true);
     }
   }, []);
