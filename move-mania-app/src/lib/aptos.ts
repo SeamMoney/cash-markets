@@ -54,7 +54,7 @@ export async function getBalance(userAddress: string, type: string) {
 }
 
 export async function transferApt(userPrivateKey: string, amount: number, toAddress: string, type: string) {
-  const aptosConfig = new AptosConfig({ network: Network.TESTNET }); // Adjust the network as needed
+  const aptosConfig = new AptosConfig({ network: Network.DEVNET }); // Adjust the network as needed
   const aptos = new Aptos(aptosConfig);
 
   const userWallet = Account.fromPrivateKey({

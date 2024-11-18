@@ -82,7 +82,7 @@ export default function BalanceButton() {
 
       toast({
         title: "Funds withdrawn",
-        description: <Link href={`https://explorer.aptoslabs.com/txn/${tx.txnHash}/?network=testnet`} target="_blank" className="underline">View transaction</Link>
+        description: <Link href={`https://explorer.aptoslabs.com/txn/${tx.txnHash}/?network=devnet`} target="_blank" className="underline">View transaction</Link>
       });
 
 

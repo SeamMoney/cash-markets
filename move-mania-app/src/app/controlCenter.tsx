@@ -134,7 +134,7 @@ export default function ControlCenter() {
         title: `Cashed out at ${cashoutMultiplier}x`,
         description: (
           <Link
-            href={`https://explorer.aptoslabs.com/txn/${blockchainRes.txnHash}/?network=testnet`}
+            href={`https://explorer.aptoslabs.com/txn/${blockchainRes.txnHash}/?network=devnet`}
             target="_blank"
             className="underline"
           >
