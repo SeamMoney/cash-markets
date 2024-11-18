@@ -28,7 +28,7 @@ export default function BalanceButton() {
 
   useEffect(() => {
     if (account) {
-      getBalance(account.public_address, `${process.env.MODULE_ADDRESS}::cash::CASH`).then((balance) => {
+      getBalance(account.public_address, `${process.env.MODULE_ADDRESS}::z_apt::ZAPT`).then((balance) => {
         setBalance(balance);
       });
     }
@@ -37,7 +37,7 @@ export default function BalanceButton() {
   useEffect(() => {
     if (account) {
       const interval = setInterval(() => {
-        getBalance(account.public_address, `${process.env.MODULE_ADDRESS}::cash::CASH`).then((balance) => {
+        getBalance(account.public_address, `${process.env.MODULE_ADDRESS}::z_apt::ZAPT`).then((balance) => {
           setBalance(balance);
         });
       }, 1000);
@@ -73,7 +73,7 @@ export default function BalanceButton() {
         account.private_key,
         parseFloat(transferAmount),
         recipientAddress,
-        `${process.env.MODULE_ADDRESS}::cash::CASH`
+        `${process.env.MODULE_ADDRESS}::z_apt::ZAPT`
       );
 
       if (!tx) {
