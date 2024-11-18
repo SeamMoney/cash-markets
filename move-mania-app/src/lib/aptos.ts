@@ -175,7 +175,8 @@ export async function createAptosKeyPair(): Promise<{
     const address = account.accountAddress.toString();
 
     const fundingAccount = Account.fromPrivateKey({
-      privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+      // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+      privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
     });
 
     const transaction = await aptos.transaction.build.simple({
@@ -192,6 +193,8 @@ export async function createAptosKeyPair(): Promise<{
       transaction,
       senderAuthenticator,
     });
+
+    console.log("Create TX: "+committedTransaction.hash)
 
     await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
@@ -210,6 +213,8 @@ export async function createAptosKeyPair(): Promise<{
       transaction: fundTransaction,
       senderAuthenticator: fundSenderAuthenticator,
     });
+
+    console.log("Fund Tx: "+fundCommittedTransaction.hash)
 
     await aptos.transaction.waitForTransaction({ transactionHash: fundCommittedTransaction.hash });
 
