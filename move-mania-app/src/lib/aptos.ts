@@ -294,6 +294,10 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
     privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
   });
 
+  console.log('User Wallet Address:', userWallet.accountAddress.toString());
+  console.log('Funding Account Address:', fundingAccount.accountAddress.toString());
+  console.log('Module Address:', MODULE_ADDRESS);
+
   const transaction = await aptos.transaction.build.simple({
     sender: userWallet.accountAddress,
     withFeePayer: true,
@@ -304,8 +308,14 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
     },
   })
 
+  console.log('Transaction Payload:', JSON.stringify(transaction, null, 2));
+
   const senderAuthenticator = aptos.transaction.sign({ signer: userWallet, transaction });
   const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({ signer: fundingAccount, transaction });
+
+
+  console.log('Sender Authenticator:', senderAuthenticator);
+  console.log('Fee Payer Signer Authenticator:', feePayerSignerAuthenticator);
 
   const committedTransaction = await aptos.transaction.submit.simple({
     transaction,
@@ -313,9 +323,16 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
     feePayerAuthenticator: feePayerSignerAuthenticator,
   });
 
+  console.log('Transaction submitted:', committedTransaction.hash);
+
   const txResult = await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
-  if (!txResult.success) return null;
+  console.log('Transaction result:', JSON.stringify(txResult, null, 2));
+
+  if (!txResult.success) {
+    console.error('Transaction failed:', txResult.vm_status);
+    throw new Error(`Transaction failed: ${txResult.vm_status}`);
+  }
 
   return {
     txnHash: txResult.hash,
