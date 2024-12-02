@@ -42,7 +42,7 @@ function getConfig(): EnvConfig {
             CASH_RESOURCE_ACCOUNT_ADDRESS]
         for (let i = 0; i < envs.length; i++) {
             if (!envs[i]) {
-                console.log(i, envs)
+                // console.log(i, envs)
             }
         }
 
@@ -62,7 +62,7 @@ function getConfig(): EnvConfig {
         LP_RESOURCE_ACCOUNT_ADDRESS: LP_RESOURCE_ACCOUNT_ADDRESS as string,
         CASH_RESOURCE_ACCOUNT_ADDRESS: CASH_RESOURCE_ACCOUNT_ADDRESS as string
     };
-    console.log(config)
+    // console.log(config)
 
     return config;
 }

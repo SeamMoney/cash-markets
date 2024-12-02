@@ -42,7 +42,7 @@ export function cashOutBet(
     ...cashOutData,
     privateKey,
   };
-  console.log("Emitting cash out event:", updatedCashOutData);
+  //console.log("Emitting cash out event:", updatedCashOutData);
   socket.emit(SOCKET_EVENTS.CASH_OUT, updatedCashOutData);
   return true;
 }

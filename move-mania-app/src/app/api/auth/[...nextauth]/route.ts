@@ -12,7 +12,7 @@ const handler = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
-      console.log("SignIn callback started", { user, account, profile, email });
+      //console.log("SignIn callback started", { user, account, profile, email });
 
       if (!user.email) {
         console.error("User email is missing")
@@ -20,7 +20,7 @@ const handler = NextAuth({
       }
 
       try {
-        console.log("Attempting to set up user", user.email);
+        //console.log("Attempting to set up user", user.email);
 
         const newUser = await setUpAndGetUser({
           email: user.email,
@@ -29,7 +29,7 @@ const handler = NextAuth({
           referred_by: null,
         })
 
-        console.log("User setup result:", newUser);
+        //console.log("User setup result:", newUser);
 
         // Always return true to allow sign in
         return true
@@ -49,7 +49,7 @@ const handler = NextAuth({
       console.warn("NextAuth Warning:", code)
     },
     debug(code, metadata) {
-      console.log("NextAuth Debug:", code, metadata)
+      //console.log("NextAuth Debug:", code, metadata)
     }
   }
 });

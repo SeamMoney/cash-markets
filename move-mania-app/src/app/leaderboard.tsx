@@ -30,7 +30,7 @@ export default function Leaderboard() {
 
     useEffect(() => {
         getUsers().then((users) => {
-            console.log("got users", users)
+            // console.log("got users", users)
             // getBalances(users).then((balances) => {
             //     console.log(balances)
             //     setUsers(balances);
@@ -43,7 +43,7 @@ export default function Leaderboard() {
         const balances = await Promise.all(
             users.map(async (user) => {
                 try {
-                    const balance = await getBalance(user.private_key, `${process.env.CASH_MODULE_ADDRESS}::cash::CASH`);
+                    const balance = await getBalance(user.private_key, `${process.env.MODULE_ADDRESS}::z_apt::ZAPT`);
                     return {
                         username: user.username,
                         public_address: user.public_address,
@@ -62,7 +62,7 @@ export default function Leaderboard() {
         return balances;
     }
 
-    console.log("Leaderboard rendering, users:", users);
+    // console.log("Leaderboard rendering, users:", users);
 
     return (
         <div className="border border-neutral-700 h-full flex flex-col items-left gap-2 w-full min-h-[200px] max-h-[700px]">

@@ -26,13 +26,13 @@ export default function PlayerList() {
     const fetchPlayers = async () => {
       const fetchedPlayers = await getPlayerList();
       setPlayers(fetchedPlayers);
-      console.log("player list:", fetchedPlayers);
+      //console.log("player list:", fetchedPlayers);
     };
 
     fetchPlayers();
 
     const handleCashOut = (data: CashOutData) => {
-      console.log("Cash out data:", data);
+      //console.log("Cash out data:", data);
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) =>
           player.username === data.playerEmail

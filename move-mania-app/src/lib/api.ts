@@ -73,7 +73,7 @@ export async function setUpUser(
     });
     return response.ok;
   } catch (e) {
-    console.log('error setting up user', e)
+    //console.log('error setting up user', e)
     return false;
   }
 }
@@ -110,13 +110,13 @@ export async function getUser(email: string): Promise<User | null> {
 }
 
 export async function setUpAndGetUser(userToSetup: Omit<User, "public_address" | "private_key" | "balance" | "referral_code">, referrer?: string) {
-  console.log('setUpAndGetUser started', userToSetup);
+  //console.log('setUpAndGetUser started', userToSetup);
   try {
     const userExists = await doesUserExist(userToSetup.email);
-    console.log('User exists check:', userExists);
+    //console.log('User exists check:', userExists);
 
     if (!userExists) {
-      console.log('Setting up new user');
+      //console.log('Setting up new user');
       const keyPair = await createAptosKeyPair();
       if (!keyPair) {
         throw new Error('Failed to create Aptos key pair');
@@ -133,7 +133,7 @@ export async function setUpAndGetUser(userToSetup: Omit<User, "public_address" |
         referral_code: keyPair.public_address.slice(2, 8),
       };
 
-      console.log('Attempting to create user with data:', JSON.stringify(newUser));
+      //console.log('Attempting to create user with data:', JSON.stringify(newUser));
 
       const response = await fetch(`${API_URL}/users`, {
         method: "POST",
@@ -150,21 +150,21 @@ export async function setUpAndGetUser(userToSetup: Omit<User, "public_address" |
 
         // If user already exists, try to fetch the user data
         if (response.status === 400 && errorText.includes("User already exists")) {
-          console.log('User creation failed due to existing user. Attempting to fetch user data.');
+          //console.log('User creation failed due to existing user. Attempting to fetch user data.');
           return await getUser(userToSetup.email);
         }
 
         throw new Error(`Failed to create user: ${response.statusText}. Details: ${errorText}`);
       }
 
-      console.log('User created successfully');
+      //console.log('User created successfully');
       return await getUser(userToSetup.email);
     } else {
-      console.log('User already exists, retrieving user data');
+      //console.log('User already exists, retrieving user data');
       return await getUser(userToSetup.email);
     }
   } catch (error) {
-    console.error('Error in setUpAndGetUser:', error);
+    // console.error('Error in setUpAndGetUser:', error);
     throw error;
   }
 }
@@ -228,19 +228,19 @@ export async function getPlayerList(): Promise<PlayerState[]> {
 
 export async function getCurrentGame() {
   try {
-    // console.log('getting game from api')
+    // //console.log('getting game from api')
     const response = await fetch(`${API_URL}/games/current`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
     });
-    // console.log('response', response)
+    // //console.log('response', response)
     const res = await response.json();
-    // console.log('res', res)
+    // //console.log('res', res)
     return res;
   } catch (e) {
-    console.log('error getting game', e)
+    //console.log('error getting game', e)
     return null;
   }
 }

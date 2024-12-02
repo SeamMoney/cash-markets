@@ -39,7 +39,7 @@ export default function GameScreen() {
     }
   }, [gameStatus]);
 
-  console.log("GameScreen rendering, gameStatus:", gameStatus);
+  // console.log("GameScreen rendering, gameStatus:", gameStatus);
 
   if (gameStatus === null) {
     return (

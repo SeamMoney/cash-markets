@@ -56,15 +56,15 @@ export default function ControlCenter() {
   }, [gameStatus?.status]);
 
   useEffect(() => {
-    console.log("Game Status:", gameStatus);
+    // console.log("Game Status:", gameStatus);
 
     if (account && gameStatus?.status === "COUNTDOWN") {
       Promise.all([
         hasUserBet(account.email),
         hasUserCashOut(account.email),
       ]).then(([bet, cashout]) => {
-        console.log("API Has Bet:", bet);
-        console.log("API Has Cash Out:", cashout);
+        // console.log("API Has Bet:", bet);
+        // console.log("API Has Cash Out:", cashout);
         setHasBet(bet);
         setHasCashOut(cashout);
       });
@@ -74,15 +74,15 @@ export default function ControlCenter() {
     }
   }, [gameStatus?.status, account]);
 
-  console.log("ControlCenter rendering, gameStatus:", gameStatus);
+  // console.log("ControlCenter rendering, gameStatus:", gameStatus);
 
   const onCashOut = useCallback(async () => {
     if (!socket || !account || !gameStatus?.startTime) {
-      console.log("Missing required data for cash out:", {
-        socket,
-        account,
-        gameStatus,
-      });
+      // console.log("Missing required data for cash out:", {
+      //   socket,
+      //   account,
+      //   gameStatus,
+      // });
       return;
     }
 
@@ -99,13 +99,13 @@ export default function ControlCenter() {
     });
 
     try {
-      console.log("Attempting to cash out with:", {
-        privateKey: account.private_key.slice(0, 5) + "...",
-        roundId: gameStatus.roundId,
-        playerEmail: account.email,
-        cashOutMultiplier: cashoutMultiplier,
-        playerAddress: account.public_address,
-      });
+      // console.log("Attempting to cash out with:", {
+      //   privateKey: account.private_key.slice(0, 5) + "...",
+      //   roundId: gameStatus.roundId,
+      //   playerEmail: account.email,
+      //   cashOutMultiplier: cashoutMultiplier,
+      //   playerAddress: account.public_address,
+      // });
 
       const blockchainRes = await
         cashOut(account.private_key, {
@@ -116,7 +116,7 @@ export default function ControlCenter() {
         });
 
       setHasCashOut(true);
-      console.log("Blockchain response:", blockchainRes);
+      // console.log("Blockchain response:", blockchainRes);
       if (!blockchainRes) {
         throw new Error("Error cashing out on blockchain");
       }
@@ -156,7 +156,7 @@ export default function ControlCenter() {
 
   const checkAutoCashout = useCallback(() => {
     if (!gameStatus || !gameStatus.startTime || !gameStatus.crashPoint) {
-      console.log("Auto cashout check skipped: missing game status data");
+      // console.log("Auto cashout check skipped: missing game status data");
       return;
     }
 
@@ -169,13 +169,13 @@ export default function ControlCenter() {
       log(EXPONENTIAL_FACTOR, parseFloat(autoCashoutAmount) || 0) * 1000 -
       Date.now();
 
-    console.log("Auto cashout check:", {
-      hasBet,
-      autoCashout,
-      timeUntilCashout,
-      timeUntilCrash,
-      autoCashoutAmount,
-    });
+    // console.log("Auto cashout check:", {
+    //   hasBet,
+    //   autoCashout,
+    //   timeUntilCashout,
+    //   timeUntilCrash,
+    //   autoCashoutAmount,
+    // });
 
     if (
       hasBet &&
@@ -183,9 +183,9 @@ export default function ControlCenter() {
       timeUntilCashout < timeUntilCrash &&
       timeUntilCashout > 0
     ) {
-      console.log("Scheduling auto cashout");
+      // console.log("Scheduling auto cashout");
       setTimeout(() => {
-        console.log("Executing auto cashout");
+        // console.log("Executing auto cashout");
         onCashOut();
       }, timeUntilCashout);
     }

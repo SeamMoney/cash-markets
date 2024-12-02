@@ -62,7 +62,8 @@ export async function transferApt(userPrivateKey: string, amount: number, toAddr
   });
 
   const fundingAccount = Account.fromPrivateKey({
-    privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
   });
 
   const transaction = await aptos.transaction.build.simple({
@@ -120,16 +121,18 @@ export async function registerForAPT(userAccount: AptosAccount) {
 }
 
 export async function registerForCASH(userWallet: Account) {
+  console.log("Registering For ZAPT for Acc: "+userWallet.accountAddress.toString())
   const fundingAccount = Account.fromPrivateKey({
-    privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+    // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
   });
 
   const transaction = await aptos.transaction.build.simple({
     sender: userWallet.accountAddress,
     withFeePayer: true,
     data: {
-      function: `${MODULE_ADDRESS}::cash::register`,
-      typeArguments: [],
+      function: `0x1::managed_coin::register`,
+      typeArguments: [BETTING_COIN_TYPE_ARG],
       functionArguments: [],
     },
   });
@@ -175,7 +178,8 @@ export async function createAptosKeyPair(): Promise<{
     const address = account.accountAddress.toString();
 
     const fundingAccount = Account.fromPrivateKey({
-      privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+      // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+      privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
     });
 
     const transaction = await aptos.transaction.build.simple({
@@ -192,6 +196,8 @@ export async function createAptosKeyPair(): Promise<{
       transaction,
       senderAuthenticator,
     });
+
+    //console.log("Create TX: "+committedTransaction.hash)
 
     await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
@@ -210,6 +216,8 @@ export async function createAptosKeyPair(): Promise<{
       transaction: fundTransaction,
       senderAuthenticator: fundSenderAuthenticator,
     });
+
+    //console.log("Fund Tx: "+fundCommittedTransaction.hash)
 
     await aptos.transaction.waitForTransaction({ transactionHash: fundCommittedTransaction.hash });
 
@@ -241,8 +249,9 @@ async function fundAccountWithAdmin(userAccount: string, amount: number) {
 }
 
 export async function fundAccountWithGas(userAddress: string) {
-  console.log('funding account', userAddress);
-  const fundingAccount = await getUserAccount(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '');
+  //console.log('funding account', userAddress);
+  // privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+  const fundingAccount = await getUserAccount('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51');
   const transfer = await coinClient.transfer(
     fundingAccount,
     userAddress,
@@ -252,7 +261,7 @@ export async function fundAccountWithGas(userAddress: string) {
     }
   );
   const fundTx = await client.waitForTransactionWithResult(transfer, { checkSuccess: true });
-  console.log('fund', fundTx);
+  //console.log('fund', fundTx);
 }
 
 export async function mintCASH(userAddress: string, amount: number) {
@@ -291,7 +300,8 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
   });
 
   const fundingAccount = Account.fromPrivateKey({
-    privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+    // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
   });
 
   console.log('User Wallet Address:', userWallet.accountAddress.toString());
@@ -304,7 +314,7 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
     data: {
       function: `${MODULE_ADDRESS}::${MODULE_NAME}::place_bet`,
       typeArguments: [BETTING_COIN_TYPE_ARG, LIQ_COIN_TYPE_ARG],
-      functionArguments: [Math.floor(betData.betAmount * APT)],
+      functionArguments: [Math.floor(betData.betAmount * APT), BETTING_COIN_TYPE_ARG],
     },
   })
 
@@ -341,17 +351,18 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
 }
 
 export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) {
-  console.log("cashOut function called with:", { userPrivateKey: userPrivateKey.slice(0, 5) + '...', cashOutData });
+  //console.log("cashOut function called with:", { userPrivateKey: userPrivateKey.slice(0, 5) + '...', cashOutData });
   try {
     const userWallet = Account.fromPrivateKey({
       privateKey: new Ed25519PrivateKey(userPrivateKey)
     });
 
     const fundingAccount = Account.fromPrivateKey({
-      privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+      privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
+      // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
     });
 
-    console.log("User wallet address:", userWallet.accountAddress.toString());
+    //console.log("User wallet address:", userWallet.accountAddress.toString());
 
     const transaction = await aptos.transaction.build.simple({
       sender: userWallet.accountAddress.toString(),
@@ -370,9 +381,9 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
     const replacer = (key: string, value: any) =>
       typeof value === 'bigint' ? value.toString() : value;
 
-    console.log("Transaction built:", JSON.stringify(transaction, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-      , 2));
+    //console.log("Transaction built:", JSON.stringify(transaction, (key, value) =>
+      // typeof value === 'bigint' ? value.toString() : value
+      // , 2));
 
     const senderAuthenticator = aptos.transaction.sign({ signer: userWallet, transaction });
     const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({ signer: fundingAccount, transaction });
@@ -382,13 +393,13 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
       feePayerAuthenticator: feePayerSignerAuthenticator,
     });
 
-    console.log("Transaction submitted:", committedTransaction.hash);
+    //console.log("Transaction submitted:", committedTransaction.hash);
 
     const txResult = await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
-    console.log("Transaction result:", JSON.stringify(txResult, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-      , 2));
+    //console.log("Transaction result:", JSON.stringify(txResult, (key, value) =>
+      // typeof value === 'bigint' ? value.toString() : value
+      // , 2));
 
     if (!txResult.success) {
       console.error("Transaction failed:", txResult);
