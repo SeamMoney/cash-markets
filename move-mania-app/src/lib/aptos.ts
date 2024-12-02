@@ -300,8 +300,7 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
   });
 
   const fundingAccount = Account.fromPrivateKey({
-    privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
-    // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
+    privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
   });
 
   console.log('User Wallet Address:', userWallet.accountAddress.toString());
