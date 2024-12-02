@@ -121,7 +121,7 @@ export async function registerForAPT(userAccount: AptosAccount) {
 }
 
 export async function registerForCASH(userWallet: Account) {
-  console.log("Registering For ZAPT for Acc: "+userWallet.accountAddress.toString())
+  console.log("Registering For ZAPT for Acc: " + userWallet.accountAddress.toString())
   const fundingAccount = Account.fromPrivateKey({
     privateKey: new Ed25519PrivateKey('0x0007a0bec4943aa4fbb937ffe39eb38b405f191b64359ad916931d63416efb51')
     // privateKey: new Ed25519PrivateKey(process.env.FUNDING_ACCOUNT_PRIVATE_KEY || '')
@@ -308,6 +308,10 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
   console.log('Funding Account Address:', fundingAccount.accountAddress.toString());
   console.log('Module Address:', MODULE_ADDRESS);
 
+  const bigintReplacer = (key: string | number, value: any): string | any => {
+    return typeof value === 'bigint' ? value.toString() : value;
+  };
+
   const transaction = await aptos.transaction.build.simple({
     sender: userWallet.accountAddress,
     withFeePayer: true,
@@ -316,16 +320,15 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
       typeArguments: [BETTING_COIN_TYPE_ARG, LIQ_COIN_TYPE_ARG],
       functionArguments: [Math.floor(betData.betAmount * APT), BETTING_COIN_TYPE_ARG],
     },
-  })
+  });
 
-  console.log('Transaction Payload:', JSON.stringify(transaction, null, 2));
+  console.log('Transaction Payload:', JSON.stringify(transaction, bigintReplacer, 2));
 
   const senderAuthenticator = aptos.transaction.sign({ signer: userWallet, transaction });
   const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({ signer: fundingAccount, transaction });
 
-
-  console.log('Sender Authenticator:', senderAuthenticator);
-  console.log('Fee Payer Signer Authenticator:', feePayerSignerAuthenticator);
+  console.log('Sender Authenticator:', JSON.stringify(senderAuthenticator, bigintReplacer, 2));
+  console.log('Fee Payer Signer Authenticator:', JSON.stringify(feePayerSignerAuthenticator, bigintReplacer, 2));
 
   const committedTransaction = await aptos.transaction.submit.simple({
     transaction,
@@ -337,7 +340,7 @@ export async function placeBet(userPrivateKey: string, betData: BetData) {
 
   const txResult = await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
-  console.log('Transaction result:', JSON.stringify(txResult, null, 2));
+  console.log('Transaction result:', JSON.stringify(txResult, bigintReplacer, 2));
 
   if (!txResult.success) {
     console.error('Transaction failed:', txResult.vm_status);
@@ -382,8 +385,8 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
       typeof value === 'bigint' ? value.toString() : value;
 
     //console.log("Transaction built:", JSON.stringify(transaction, (key, value) =>
-      // typeof value === 'bigint' ? value.toString() : value
-      // , 2));
+    // typeof value === 'bigint' ? value.toString() : value
+    // , 2));
 
     const senderAuthenticator = aptos.transaction.sign({ signer: userWallet, transaction });
     const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({ signer: fundingAccount, transaction });
@@ -398,8 +401,8 @@ export async function cashOut(userPrivateKey: string, cashOutData: CashOutData) 
     const txResult = await aptos.transaction.waitForTransaction({ transactionHash: committedTransaction.hash });
 
     //console.log("Transaction result:", JSON.stringify(txResult, (key, value) =>
-      // typeof value === 'bigint' ? value.toString() : value
-      // , 2));
+    // typeof value === 'bigint' ? value.toString() : value
+    // , 2));
 
     if (!txResult.success) {
       console.error("Transaction failed:", txResult);
