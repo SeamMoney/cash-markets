@@ -241,7 +241,7 @@ module zion::crash {
     assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
 
     let does_bet_exist = simple_map::contains_key(&game_mut_ref.bets, &signer::address_of(player));
-    assert!(does_bet_exist, EBetAlreadyExists);
+    assert!(!does_bet_exist, EBetAlreadyExists);
 
     event::emit_event(
       &mut state.bet_placed_events,
@@ -288,7 +288,7 @@ module zion::crash {
     assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
 
     let does_bet_exist = simple_map::contains_key(&game_mut_ref.bets, &signer::address_of(player));
-    assert!(does_bet_exist, EBetAlreadyExists);
+    assert!(!does_bet_exist, EBetAlreadyExists);
 
     event::emit_event(
       &mut state.bet_placed_events,
@@ -328,7 +328,6 @@ module zion::crash {
     player: address,
     cash_out: u64
   ) acquires State {
-    whitelist::assert_is_admin(get_resource_address(), admin);
 
     let state = borrow_global_mut<State>(get_resource_address());
     assert!(option::is_some(&state.current_game), ENoGameExists);
