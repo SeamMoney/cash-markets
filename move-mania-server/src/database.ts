@@ -93,18 +93,21 @@ export async function getUsers() {
 }
 
 export async function createUser(user: User) {
-  await initializeAllTables(); // initialize tables if not yet initialized
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "games.db",
     driver: require("sqlite3").Database,
   });
 
   await db.run(
-    "INSERT INTO users (address, username, referral_code, referred_by) VALUES (?, ?, ?, ?)",
-    user.address,
+    "INSERT INTO users (username, image, email, public_address, private_key, balance, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     user.username,
+    user.image,
+    user.email,
+    user.public_address,
+    user.private_key,
+    STARTING_BALANCE,
     user.referral_code,
     user.referred_by
   );
@@ -112,53 +115,53 @@ export async function createUser(user: User) {
   await db.close();
 }
 
-export async function getUser(address: string) {
-  await initializeAllTables(); // initialize tables if not yet initialized
+export async function getUser(email: string) {
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "games.db",
     driver: require("sqlite3").Database,
   });
 
-  // Get the user with the given address
-  const user = (await db.get("SELECT * FROM users WHERE address = ?", address)) as
-    | User
-    | undefined;
+  const user = await db.get("SELECT * FROM users WHERE email = ?", email) as User | undefined;
 
   await db.close();
 
   return user;
 }
 
-export async function updateUser(address: string, user: User) {
-  await initializeAllTables(); // initialize tables if not yet initialized
+export async function updateUser(email: string, user: User) {
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "games.db",
     driver: require("sqlite3").Database,
   });
 
   await db.run(
-    "UPDATE users SET username = ? WHERE address = ?",
+    "UPDATE users SET image = ?, username = ?, public_address = ?, private_key = ?, balance = ?, referral_code = ?, referred_by = ? WHERE email = ?",
+    user.image,
     user.username,
-    address
+    user.public_address,
+    user.private_key,
+    user.balance,
+    user.referral_code,
+    user.referred_by,
+    email
   );
 
   await db.close();
 }
 
-export async function deleteUser(address: string) {
-  await initializeAllTables(); // initialize tables if not yet initialized
+export async function deleteUser(email: string) {
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "games.db",
     driver: require("sqlite3").Database,
   });
 
-  await db.run("DELETE FROM users WHERE address = ?", address);
+  await db.run("DELETE FROM users WHERE email = ?", email);
 
   await db.close();
 }
@@ -320,17 +323,15 @@ export async function clearGames() {
  * @returns A list of all the players in the player list
  */
 export async function getPlayerList() {
-  await initializeAllTables(); // initialize tables if not yet initialized
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "./games.db",
     driver: require("sqlite3").Database,
   });
 
-  // Get all the players in the player list and get their corresponding usernames from the users table
   const players = await db.all(
-    "SELECT user_id, username, bet_type, bet_amount, crash_point FROM player_list JOIN users ON player_list.user_id = users.address"
+    "SELECT user_id, username, bet_type, bet_amount, crash_point FROM player_list JOIN users ON player_list.user_id = users.email"
   );
 
   await db.close();
@@ -375,35 +376,56 @@ export async function addBetToPlayerList(bet: BetData) {
  * @param cashOut The cash out to be added to the player list
  */
 export async function addCashOutToPlayerList(cashOut: CashOutData) {
-  await initializeAllTables(); // initialize tables if not yet initialized
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "./games.db",
     driver: require("sqlite3").Database,
   });
 
-  await db.run(
-    "UPDATE player_list SET crash_point = ? WHERE user_id = ?",
-    cashOut.cashOutMultiplier,
-    cashOut.playerEmail
-  );
+  try {
+    console.log('Updating player list with cash out:', cashOut);
+    const result = await db.run(
+      "UPDATE player_list SET crash_point = ? WHERE user_id = ?",
+      cashOut.cashOutMultiplier,
+      cashOut.playerEmail
+    );
+    console.log("Cash out update result:", result);
 
-  await db.close();
+    if (result.changes === 0) {
+      console.error('No rows updated. Player not found or crash_point already set.');
+      return false;
+    }
+
+    const updatedPlayer = await db.get(
+      "SELECT * FROM player_list WHERE user_id = ?",
+      cashOut.playerEmail
+    );
+    console.log("Updated player data:", updatedPlayer);
+
+    if (!updatedPlayer) {
+      console.error('Failed to retrieve updated player data');
+      return false;
+    }
+    return true;
+
+  } catch (error) {
+    console.error("Error updating player list with cash out:", error);
+  } finally {
+    await db.close();
+  }
 }
 
 export async function getUserByReferralCode(referralCode: string) {
-  await initializeAllTables(); // initialize tables if not yet initialized
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "games.db",
     driver: require("sqlite3").Database,
   });
 
-  // Get the user with the given referral code
   const user = await db.get(
-    "SELECT * FROM users WHERE public_address LIKE CONCAT('%', ?)",
+    "SELECT * FROM users WHERE referral_code = ?",
     referralCode
   );
 
@@ -469,17 +491,15 @@ export async function addChatMessage(chatMessage: ChatMessage) {
  * @returns A list of all the chat messages in chronological order
  */
 export async function getChatMessages() {
-  await initializeAllTables(); // initialize tables if not yet initialized
+  await initializeAllTables();
 
-  // Open the database
   const db = await open({
     filename: "./games.db",
     driver: require("sqlite3").Database,
   });
 
-  // Get all the chat messages and get the corresponding usernames from the users table
   const chatMessages = await db.all(
-    "SELECT user_id, username, message FROM chat_messages JOIN users ON chat_messages.user_id = users.address"
+    "SELECT chat_messages.user_id, users.username, chat_messages.message FROM chat_messages JOIN users ON chat_messages.user_id = users.email"
   );
 
   await db.close();

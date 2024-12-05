@@ -5,7 +5,8 @@
   "license": "MIT",
   "scripts": {
     "server": "nodemon src/server.ts",
-    "api": "nodemon src/api.ts"
+    "api": "nodemon src/api.ts",
+    "deploy_lp": "nodemon src/deploy.ts"
   },
   "dependencies": {
     "@types/node": "^20.11.16",

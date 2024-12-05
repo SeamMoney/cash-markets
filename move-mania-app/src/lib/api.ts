@@ -1,5 +1,5 @@
 import { PlayerState } from "@/app/playerList";
-import { fundAccountWithGas, mintZAPT, registerForZAPT } from "./aptos";
+import { fundAccountWithGas, mintCASH, registerForCASH, createAptosKeyPair } from "./aptos";
 import { User } from "./schema";
 import { ChatMessage } from "./types";
 import { MagicAptosWallet } from "@magic-ext/aptos";
@@ -21,9 +21,9 @@ export async function getUsers() {
   }
 }
 
-export async function doesUserExist(address: string) {
+export async function doesUserExist(email: string) {
   try {
-    const response = await fetch(`${API_URL}/users/${address}`, {
+    const response = await fetch(`${API_URL}/users/${email}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -37,40 +37,43 @@ export async function doesUserExist(address: string) {
 }
 
 export async function setUpUser(
-  userWallet: Account,
-  userToSetup: Omit<User, "referred_by" | "referral_code" | "username">,
+  userToSetup: Omit<User, "public_address" | "private_key" | "balance" | "referral_code">,
   referrer?: string
 ) {
+  if (referrer) {
+    const referrerUser = await getUserFromReferralCode(referrer);
+    await mintCASH(referrerUser.public_address, 100);
+  }
 
-  // if (referrer) {
+  const keyPair = await createAptosKeyPair();
+  if (!keyPair) {
+    console.error('Failed to create Aptos key pair');
+    return false;
+  }
 
-  //   const referrerUser = await getUserFromReferralCode(referrer);
+  await fundAccountWithGas(keyPair.public_address);
+  await mintCASH(keyPair.public_address, 1000);
 
-  //   mintZAPT(referrerUser.private_key, 100);
-  // }
-
-  // const keyPair = await createAptosKeyPair();
-  await fundAccountWithGas(userToSetup.address);
-  await registerForZAPT(userWallet);
-  await mintZAPT(userToSetup.address, 1000);
+  const newUser = {
+    ...userToSetup,
+    public_address: keyPair.public_address,
+    private_key: keyPair.private_key,
+    balance: 1000,
+    referral_code: keyPair.public_address.slice(2, 8),
+  };
 
   try {
     const response = await fetch(`${API_URL}/users`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // "api-key": process.env.ZION_API_KEY || "",
+        "api-key": process.env.ZION_API_KEY || "",
       },
-      body: JSON.stringify({
-        address: userToSetup.address,
-        username: userToSetup.address.slice(0, 8),
-        referral_code: userToSetup.address.slice(2, 8),
-        referred_by: referrer || null,
-      }),
+      body: JSON.stringify(newUser),
     });
     return response.ok;
   } catch (e) {
-    console.log('error setting up user', e)
+    //console.log('error setting up user', e)
     return false;
   }
 }
@@ -91,9 +94,9 @@ export async function getUserFromReferralCode(referralCode: string) {
   }
 }
 
-export async function getUser(address: string): Promise<User | null> {
+export async function getUser(email: string): Promise<User | null> {
   try {
-    const response = await fetch(`${API_URL}/users/${address}`, {
+    const response = await fetch(`${API_URL}/users/${email}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -106,24 +109,63 @@ export async function getUser(address: string): Promise<User | null> {
   }
 }
 
-export async function setUpAndGetUser(
-  userToSetup: Omit<User, "referred_by" | "referral_code" | "username">, 
-  userWallet: Account,
-  referrer?: string
-): Promise<User | null> {
-  console.log('userToSetup', userToSetup)
-  const userExists = await doesUserExist(userToSetup.address);
-  console.log('userExists', userExists);
-  if (!userExists) {
-    const res = await setUpUser(userWallet, userToSetup, referrer);
-    console.log('res from setting up user', res)
-    if (res) {
-      return getUser(userToSetup.address);
+export async function setUpAndGetUser(userToSetup: Omit<User, "public_address" | "private_key" | "balance" | "referral_code">, referrer?: string) {
+  //console.log('setUpAndGetUser started', userToSetup);
+  try {
+    const userExists = await doesUserExist(userToSetup.email);
+    //console.log('User exists check:', userExists);
+
+    if (!userExists) {
+      //console.log('Setting up new user');
+      const keyPair = await createAptosKeyPair();
+      if (!keyPair) {
+        throw new Error('Failed to create Aptos key pair');
+      }
+
+      await fundAccountWithGas(keyPair.public_address);
+      await mintCASH(keyPair.public_address, 1000);
+
+      const newUser = {
+        ...userToSetup,
+        public_address: keyPair.public_address,
+        private_key: keyPair.private_key,
+        balance: 1000,
+        referral_code: keyPair.public_address.slice(2, 8),
+      };
+
+      //console.log('Attempting to create user with data:', JSON.stringify(newUser));
+
+      const response = await fetch(`${API_URL}/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": process.env.ZION_API_KEY || "",
+        },
+        body: JSON.stringify(newUser),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to create user. Status:', response.status, 'Response:', errorText);
+
+        // If user already exists, try to fetch the user data
+        if (response.status === 400 && errorText.includes("User already exists")) {
+          //console.log('User creation failed due to existing user. Attempting to fetch user data.');
+          return await getUser(userToSetup.email);
+        }
+
+        throw new Error(`Failed to create user: ${response.statusText}. Details: ${errorText}`);
+      }
+
+      //console.log('User created successfully');
+      return await getUser(userToSetup.email);
     } else {
-      return null;
+      //console.log('User already exists, retrieving user data');
+      return await getUser(userToSetup.email);
     }
-  } else {
-    return getUser(userToSetup.address);
+  } catch (error) {
+    // console.error('Error in setUpAndGetUser:', error);
+    throw error;
   }
 }
 
@@ -186,19 +228,19 @@ export async function getPlayerList(): Promise<PlayerState[]> {
 
 export async function getCurrentGame() {
   try {
-    // console.log('getting game from api')
+    // //console.log('getting game from api')
     const response = await fetch(`${API_URL}/games/current`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
     });
-    // console.log('response', response)
+    // //console.log('response', response)
     const res = await response.json();
-    // console.log('res', res)
+    // //console.log('res', res)
     return res;
   } catch (e) {
-    console.log('error getting game', e)
+    //console.log('error getting game', e)
     return null;
   }
 }

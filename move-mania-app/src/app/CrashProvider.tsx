@@ -2,94 +2,132 @@
 
 import { User } from "@/lib/schema";
 import { GameStatus } from "./controlCenter";
-import { ReactNode, createContext, useEffect, useState } from "react";
+import { ReactNode, createContext, useEffect, useState, useCallback } from "react";
 import { socket } from "@/lib/socket";
 import { getSession } from "next-auth/react";
-import { getCurrentGame } from "@/lib/api";
+import { getCurrentGame, getUser, setUpAndGetUser } from "@/lib/api";
 import { SOCKET_EVENTS } from "@/lib/types";
+import { CashOutData } from "@/lib/types";
+import { PlayerState } from "./playerList";
 import { EXPONENTIAL_FACTOR, log } from "@/lib/utils";
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
-
 
 interface CrashPageProps {
   gameStatus: GameStatus | null;
   account: User | null;
   latestAction: number | null;
+  playerList: PlayerState[];
+  setPlayerList: React.Dispatch<React.SetStateAction<PlayerState[]>>;
 }
+
 export const gameStatusContext = createContext<CrashPageProps>({
-  gameStatus: null, 
+  gameStatus: null,
   account: null,
   latestAction: null,
+  playerList: [],
+  setPlayerList: () => { },
 });
 
 export default function CrashProvider({ children }: { children: ReactNode }) {
-
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
   const [account, setAccount] = useState<User | null>(null);
-  const [update, setUpdate] = useState(true);
   const [latestAction, setLatestAction] = useState<number | null>(null);
-
   const [showPWAInstall, setShowPWAInstall] = useState(false);
+  const [playerList, setPlayerList] = useState<PlayerState[]>([]);
+
+  const onConnect = useCallback(() => {
+    //console.log"socket connected");
+    setIsConnected(true);
+  }, []);
+
+  const updatePlayerList = useCallback((newPlayerList: React.SetStateAction<PlayerState[]>) => {
+    //console.log"Updating playerList:", newPlayerList);
+    setPlayerList(newPlayerList);
+  }, []);
+
+  const onDisconnect = useCallback(() => {
+    setIsConnected(false);
+  }, []);
+
+  const onRoundStart = useCallback((data: any) => {
+    setGameStatus({
+      status: "COUNTDOWN",
+      roundId: data.gameId,
+      startTime: data.startTime,
+      crashPoint: data.crashPoint,
+    });
+    setLatestAction(Date.now());
+  }, []);
+
+  const onRoundResult = useCallback((data: any) => {
+    if (data && data.roundId && data.crashPoint) {
+      setGameStatus({
+        status: "END",
+        roundId: data.gameId,
+        startTime: data.startTime,
+        crashPoint: data.crashPoint,
+      });
+      setLatestAction(Date.now());
+    } else {
+      console.error("Invalid data received in onRoundResult:", data);
+    }
+  }, [gameStatus]);
+
+  const onBetConfirmed = useCallback(() => {
+    setLatestAction(Date.now());
+  }, []);
+
+  const onCashOutConfirmed = useCallback((cashOutData: CashOutData) => {
+    //console.log"onCashOutConfirmed called with data:", cashOutData);
+    //console.log"Before updating playerList:", playerList);
+    setLatestAction(Date.now());
+    setPlayerList((prevList) => {
+      const updatedList = prevList.map((player) =>
+        player.username === cashOutData.playerEmail
+          ? { ...player, cashOutMultiplier: cashOutData.cashOutMultiplier }
+          : player
+      );
+      //console.log"After updating playerList:", updatedList);
+      return updatedList;
+    });
+    socket.emit(SOCKET_EVENTS.CASH_OUT_CONFIRMED, cashOutData);
+    // //console.log"JUST EMITTED CASH OUT CONFIRMED:", cashOutData);
+  }, []);
 
   useEffect(() => {
+    // //console.log"CrashProvider updating game status:", gameStatus);
+    getSession().then((session) => {
+      if (session && session.user && session.user.email) {
+        setUpAndGetUser({
+          email: session.user.email,
+          username: session.user.name || "",
+          image: session.user.image || "",
+          referred_by: null,
+        }).then((user) => {
+          if (user) {
+            setAccount(user);
+          }
+        });
+      }
+    });
+  }, [])
 
-    // getSession().then((session) => {
-    //   if (session) {
-    //     if (!session.user) return;
+  useEffect(() => {
+    
+    const logAllEvents = (eventName: string, ...args: any[]) => {
+      //console.log`Received ${eventName} event:`, ...args);
+    };
 
-    //     setUpAndGetUser({
-    //       username: session.user.name || "",
-    //       image: session.user.image || "",
-    //       email: session.user.email || "",
-    //     }).then((user) => {
-    //       if (user) {
-    //         setAccount(user);
-    //       }
-    //     });
-    //   }
-    // });
-
-    function onConnect() {
-      setIsConnected(true);
-    }
-
-    function onDisconnect() {
-      setIsConnected(false);
-    }
-
-    function onRoundStart() {
-      setUpdate(true);
-      setLatestAction(Date.now());
-    }
-
-    function onRoundResult() {
-      setUpdate(true);
-      setLatestAction(Date.now());
-    }
-
-    function onBetConfirmed() {
-      setLatestAction(Date.now());
-    }
-
-    function onCashOutConfirmed() {
-      setLatestAction(Date.now());
-    }
-
-    // function onFooEvent(value) {
-    //   // setFooEvents(previous => [...previous, value]);
-    // }
-
+    socket.onAny(logAllEvents);
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on(SOCKET_EVENTS.ROUND_START, onRoundStart);
@@ -103,37 +141,55 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
       socket.off(SOCKET_EVENTS.ROUND_START, onRoundStart);
       socket.off(SOCKET_EVENTS.BET_CONFIRMED, onBetConfirmed);
       socket.off(SOCKET_EVENTS.CASH_OUT_CONFIRMED, onCashOutConfirmed);
-      socket.off(SOCKET_EVENTS.ROUND_RESULT, onRoundResult); 
+      socket.off(SOCKET_EVENTS.ROUND_RESULT, onRoundResult);
+      socket.offAny(logAllEvents);
     };
-  }, []);
+  }, [onConnect, onDisconnect, onRoundStart, onBetConfirmed, onCashOutConfirmed, onRoundResult]);
 
   useEffect(() => {
+    //console.log"CrashProvider updating game status:", gameStatus);
 
-    if (update) {
-      getCurrentGame().then((game) => {
+    if (account && latestAction) {
+      getUser(account.email).then((updatedUser) => {
+        if (updatedUser) {
+          const timeoutId = setTimeout(() => {
+            getUser(account.email).then((updatedUser) => {
+              if (updatedUser) {
+                setAccount(updatedUser);
+              }
+            });
+          }, 1000); // Delay API call by 1 second
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  }, [latestAction, account]);
+
+  useEffect(() => {
+    //console.log"CrashProvider updating game status:", gameStatus);
+    const fetchGameStatus = async () => {
+      try {
+        const game = await getCurrentGame();
         if (game == null) {
           setGameStatus(null);
         } else {
-          if (game.start_time > Date.now()) {
+          const now = Date.now();
+          const gameEndTime = game.start_time + (game.secret_crash_point == 0 ? 0 : log(EXPONENTIAL_FACTOR, game.secret_crash_point)) * 1000;
+
+          if (game.start_time > now) {
             setGameStatus({
               status: "COUNTDOWN",
               roundId: game.game_id,
               startTime: game.start_time,
               crashPoint: game.secret_crash_point,
             });
-            setTimeout(() => {
-              setUpdate(true);
-            }, game.start_time - Date.now());
-          } else if (game.start_time + (game.secret_crash_point == 0 ? 0 : log(EXPONENTIAL_FACTOR, game.secret_crash_point)) * 1000 > Date.now()) {
+          } else if (now < gameEndTime) {
             setGameStatus({
               status: "IN_PROGRESS",
               roundId: game.game_id,
               startTime: game.start_time,
               crashPoint: game.secret_crash_point,
             });
-            setTimeout(() => {
-              setUpdate(true);
-            }, game.start_time + (game.secret_crash_point == 0 ? 0 : log(EXPONENTIAL_FACTOR, game.secret_crash_point)) * 1000 - Date.now());
           } else {
             setGameStatus({
               status: "END",
@@ -143,17 +199,17 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
             });
           }
         }
-      });
-  
-      setUpdate(false);
-    }
+      } catch (error) {
+        console.error("Error fetching game status:", error);
+      }
+    };
 
-  }, [update]);
+    fetchGameStatus();
+    const intervalId = setInterval(fetchGameStatus, 1000);
 
-  /**
-   * Is the page currently in standalone display mode (used by PWA)?
-   * @return {boolean}
-   */
+    return () => clearInterval(intervalId);
+  }, []);
+
   function isInStandaloneMode() {
     return Boolean(
       (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
@@ -163,12 +219,13 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isInStandaloneMode()) {
-      console.log('This is running as standalone.');
+      //console.log'This is running as standalone.');
     } else {
-      console.log('This is not running as standalone.');
+      //console.log'This is not running as standalone.');
       setShowPWAInstall(true);
     }
   }, []);
+
 
   return (
     <gameStatusContext.Provider
@@ -176,6 +233,8 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
         gameStatus,
         account,
         latestAction,
+        playerList,
+        setPlayerList: updatePlayerList,
       }}
     >
       {children}
@@ -190,7 +249,7 @@ export default function CrashProvider({ children }: { children: ReactNode }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel 
+            <AlertDialogCancel
               onClick={() => {
                 setShowPWAInstall(false);
                 localStorage.setItem("pwaPrompt", 'true');

@@ -3,7 +3,7 @@
 import { Socket, io } from "socket.io-client";
 import { BetData, CashOutData, ChatMessage, SOCKET_EVENTS } from "./types";
 
-export const socket = io( process.env.ZION_API_URL ? "https://zionapi.xyz:8080" : "http://localhost:8080", {
+export const socket = io(process.env.ZION_API_URL ? "https://api.cash.markets:8080" : "http://localhost:8080", {
   auth: {
     token: process.env.ZION_API_KEY || "",
   },
@@ -29,13 +29,21 @@ export function setNewBet(betData: BetData): boolean {
   return true;
 }
 
-export function cashOutBet(cashOutData: CashOutData): boolean {
+export function cashOutBet(
+  cashOutData: CashOutData,
+  privateKey: string
+): boolean {
   if (socket.disconnected || !socket.connected) {
     console.error("Socket is not connected");
     return false;
   }
 
-  socket.emit(SOCKET_EVENTS.CASH_OUT, cashOutData);
+  const updatedCashOutData = {
+    ...cashOutData,
+    privateKey,
+  };
+  //console.log("Emitting cash out event:", updatedCashOutData);
+  socket.emit(SOCKET_EVENTS.CASH_OUT, updatedCashOutData);
   return true;
 }
 

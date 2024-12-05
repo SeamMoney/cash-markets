@@ -4,7 +4,6 @@ module zion::crash {
   use std::signer;
   use std::vector;
   use zion::liquidity_pool;
-  use zion::whitelist;
   use aptos_framework::coin;
   use aptos_framework::account;
   use aptos_framework::timestamp;
@@ -15,7 +14,6 @@ module zion::crash {
   use std::simple_map::{Self, SimpleMap};
   use aptos_framework::aptos_coin::{AptosCoin};
   use aptos_framework::event::{Self, EventHandle};
-  use aptos_std::type_info::{Self, TypeInfo, type_name};
 
   use std::debug::print;
   
@@ -30,9 +28,6 @@ module zion::crash {
   const ENoBetToCashOut: u64 = 5;
   const EGameAlreadyExists: u64 = 6;
   const EHashesDoNotMatch: u64 = 7;
-  const EGameHasntEnded: u64 = 8;
-  const ENotAllWinningsDistributed: u64 = 9;
-  const EBetAlreadyExists: u64 = 10;
   
   struct State has key {
     signer_cap: account::SignerCapability,
@@ -44,30 +39,26 @@ module zion::crash {
     winnings_paid_to_player_events: EventHandle<WinningsPaidToPlayerEvent>
   }
 
-  struct Game has store, drop {
+  struct Game has store {
     start_time_ms: u64,
     house_secret_hash: vector<u8>,
     salt_hash: vector<u8>,
     randomness: u64,
     bets: SimpleMap<address, Bet>,
-    crash_point: Option<u64>
   }
 
-  struct Bet has store, drop {
+  struct Bet has store {
     player: address, 
     bet_amount: u64, 
-    cash_out: Option<u64>,
-    token_address_as_string: String
+    cash_out: Option<u64>
   }
 
-  #[event]
   struct CrashPointCalculateEvent has drop, store {
     house_secret: vector<u8>,
     salt: vector<u8>,
     crash_point: u64
   }
 
-  #[event]
   struct RoundStartEvent has drop, store {
     start_time_micro_seconds: u64,
     house_secret_hash: vector<u8>,
@@ -75,22 +66,17 @@ module zion::crash {
     randomness: u64
   }
 
-  #[event]
   struct BetPlacedEvent has drop, store {
-    token: String,
     player: address,
     bet_amount: u64
   }
 
-  #[event]
   struct CashOutEvent has drop, store {
     player: address,
     cash_out: u64
   }
 
-  #[event]
   struct WinningsPaidToPlayerEvent has drop, store {
-    token: String,
     player: address,
     winnings: u64
   }
@@ -102,11 +88,6 @@ module zion::crash {
   */
   fun init_module(admin: &signer) {
     let (resource_account_signer, signer_cap) = account::create_resource_account(admin, SEED);
-
-    //This creates the whitelist for both crash and liquidity pool.
-    if(!whitelist::whitelist_exists(signer::address_of(&resource_account_signer))){
-      whitelist::create_module_whitelist(&resource_account_signer, admin); 
-    };
 
     coin::register<AptosCoin>(&resource_account_signer);
 
@@ -139,7 +120,7 @@ module zion::crash {
     house_secret_hash: vector<u8>, 
     salt_hash: vector<u8>
   ) acquires State {
-    whitelist::assert_is_admin(get_resource_address(), admin);
+    assert_user_is_module_owner(admin);
 
     let state = borrow_global_mut<State>(get_resource_address());
 
@@ -162,22 +143,13 @@ module zion::crash {
       }
     );
 
-    event::emit(
-      RoundStartEvent {
-        start_time_micro_seconds: timestamp::now_microseconds() + COUNTDOWN_MS,
-        house_secret_hash,
-        salt_hash,
-        randomness: new_randomness
-      }
-    );
-
     let new_game = Game {
       start_time_ms: timestamp::now_microseconds() + COUNTDOWN_MS, 
       house_secret_hash,
       salt_hash,
       bets: simple_map::new(),
       randomness: new_randomness,
-      crash_point: option::none()
+      // crash_point_ms: option::none()
     };
     option::fill(&mut state.current_game, new_game);
   }
@@ -185,7 +157,7 @@ module zion::crash {
   public entry fun force_remove_game(
     admin: &signer
   ) acquires State {
-    whitelist::assert_is_admin(get_resource_address(), admin);
+    assert_user_is_module_owner(admin);
     let state = borrow_global_mut<State>(get_resource_address());
     let game = option::extract(&mut state.current_game);
     let Game {
@@ -194,7 +166,6 @@ module zion::crash {
       salt_hash: _,
       randomness: _,
       bets: game_bets,
-      crash_point: _
     } = game;
 
     let (betters, bets) = simple_map::to_vec_pair(game_bets);
@@ -208,8 +179,7 @@ module zion::crash {
       let Bet {
         player: _,
         bet_amount: _,
-        cash_out: _,
-        token_address_as_string: _
+        cash_out: _
       } = bet;
       cleared_betters = cleared_betters + 1;
     };
@@ -218,21 +188,15 @@ module zion::crash {
     vector::destroy_empty(bets);
   }
 
-  const E_TOKEN_IS_NOT_TOKEN_TYPE: u64 = 0;
-
   /*
   * Places a bet in the current game of crash. To be used by players via the client.
   * @param player - the signer of the player
   * @param bet_amount - the amount of the bet
   */
-  public entry fun place_bet<BettingCoinType, LPCoinType>(
+  public entry fun place_bet(
     player: &signer,
-    bet_amount: u64,
-    token_addr_as_string: String
+    bet_amount: u64
   ) acquires State {
-
-    let betting_coin_as_string = type_info::type_name<BettingCoinType>();
-
     let state = borrow_global_mut<State>(get_resource_address());
 
     assert!(option::is_some(&state.current_game), ENoGameExists);
@@ -240,21 +204,9 @@ module zion::crash {
     let game_mut_ref = option::borrow_mut(&mut state.current_game);
     assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
 
-    let does_bet_exist = simple_map::contains_key(&game_mut_ref.bets, &signer::address_of(player));
-    assert!(!does_bet_exist, EBetAlreadyExists);
-
     event::emit_event(
       &mut state.bet_placed_events,
       BetPlacedEvent {
-        token: betting_coin_as_string,
-        player: signer::address_of(player),
-        bet_amount
-      }
-    );
-
-    event::emit(
-      BetPlacedEvent {
-        token: betting_coin_as_string,
         player: signer::address_of(player),
         bet_amount
       }
@@ -263,59 +215,12 @@ module zion::crash {
     let new_bet = Bet {
       player: signer::address_of(player),
       bet_amount,
-      cash_out: option::none(),
-      token_address_as_string: betting_coin_as_string
+      cash_out: option::none()
     };
     simple_map::add(&mut game_mut_ref.bets, signer::address_of(player), new_bet);
     
-    let bet_coin = coin::withdraw<BettingCoinType>(player, bet_amount);
-    liquidity_pool::put_reserve_coins<BettingCoinType, LPCoinType>(bet_coin);
-  }
-
-
-  public entry fun place_bet_fa<ReserveTokenType: key>(
-    player: &signer,
-    bet_amount: u64,
-  ) acquires State {
-
-    let bet_identifier = type_info::type_name<ReserveTokenType>();
-
-    let state = borrow_global_mut<State>(get_resource_address());
-
-    assert!(option::is_some(&state.current_game), ENoGameExists);
-
-    let game_mut_ref = option::borrow_mut(&mut state.current_game);
-    assert!(timestamp::now_microseconds() < game_mut_ref.start_time_ms, EGameStarted);
-
-    let does_bet_exist = simple_map::contains_key(&game_mut_ref.bets, &signer::address_of(player));
-    assert!(!does_bet_exist, EBetAlreadyExists);
-
-    event::emit_event(
-      &mut state.bet_placed_events,
-      BetPlacedEvent {
-        token: type_info::type_name<ReserveTokenType>(),
-        player: signer::address_of(player),
-        bet_amount
-      }
-    );
-
-    event::emit(
-      BetPlacedEvent {
-        token: type_info::type_name<ReserveTokenType>(),
-        player: signer::address_of(player),
-        bet_amount
-      }
-    );
-
-    let new_bet = Bet {
-      player: signer::address_of(player),
-      bet_amount,
-      cash_out: option::none(),
-      token_address_as_string: bet_identifier
-    };
-    simple_map::add(&mut game_mut_ref.bets, signer::address_of(player), new_bet);
-    
-    liquidity_pool::put_reserve_coins_fa<ReserveTokenType>(player, bet_amount);
+    let bet_coin = coin::withdraw(player, bet_amount);
+    liquidity_pool::put_reserve_coins(bet_coin);
   }
 
 
@@ -328,6 +233,7 @@ module zion::crash {
     player: address,
     cash_out: u64
   ) acquires State {
+    assert_user_is_module_owner(admin);
 
     let state = borrow_global_mut<State>(get_resource_address());
     assert!(option::is_some(&state.current_game), ENoGameExists);
@@ -345,23 +251,14 @@ module zion::crash {
         cash_out
       }
     );
-
-    event::emit(
-      CashOutEvent {
-        player: player,
-        cash_out
-      }
-    );
   
     bet.cash_out = option::some(cash_out);
   }
 
-  public entry fun reveal_crashpoint(
-    admin: &signer,
+  public entry fun reveal_crashpoint_and_distribute_winnings(
     salted_house_secret: vector<u8>, 
     salt: vector<u8>
   ) acquires State {
-    whitelist::assert_is_admin(get_resource_address(), admin);
     let state = borrow_global_mut<State>(get_resource_address());
     assert!(option::is_some(&state.current_game), ENoGameExists);
 
@@ -378,10 +275,20 @@ module zion::crash {
       EHashesDoNotMatch
     );
 
-    let game = option::borrow_mut(&mut state.current_game);
-    let crash_point = calculate_crash_point_with_randomness(game.randomness, string::utf8(salted_house_secret));
+    let game = option::extract(&mut state.current_game);
+    let Game {
+      start_time_ms: _,
+      house_secret_hash: _,
+      salt_hash: _,
+      randomness,
+      bets: game_bets,
+    } = game;
+    let (betters, bets) = simple_map::to_vec_pair(game_bets);
 
-    game.crash_point = option::some(crash_point);
+    let number_of_bets = vector::length(&betters);
+    let cleared_betters = 0;
+
+    let crash_point = calculate_crash_point_with_randomness(randomness, string::utf8(salted_house_secret));
 
     event::emit_event(
       &mut state.crash_point_calculate_events,
@@ -392,139 +299,34 @@ module zion::crash {
       }
     );
 
-    event::emit(
-      CrashPointCalculateEvent {
-        house_secret: salted_house_secret,
-        salt,
-        crash_point
-      }
-    );
+    while (cleared_betters < number_of_bets) {
+      let better = vector::pop_back(&mut betters);
+      let bet = vector::pop_back(&mut bets);
+
+      //
+
+      let winnings = determine_win(bet, crash_point);
+
+      if (winnings > 0) {
+        let winnings_coin = liquidity_pool::extract_reserve_coins(winnings);
+
+        coin::deposit(better, winnings_coin);
+      };
+
+      event::emit_event(
+        &mut state.winnings_paid_to_player_events,
+        WinningsPaidToPlayerEvent {
+          player: better,
+          winnings
+        }
+      );
+
+      cleared_betters = cleared_betters + 1;
+    };
+
+    vector::destroy_empty(betters);
+    vector::destroy_empty(bets);
   }
-
-    public entry fun distribute_winnings<BettingCoinType, LPCoinType>() acquires State {
-        let state = borrow_global_mut<State>(get_resource_address());
-        assert!(option::is_some(&state.current_game), ENoGameExists);
-
-        let game_mut_ref = option::borrow_mut(&mut state.current_game);
-        assert!(timestamp::now_microseconds() >= game_mut_ref.start_time_ms, EGameNotStarted);
-
-        let betting_coin_as_string = type_info::type_name<BettingCoinType>();
-
-        let game = option::borrow_mut(&mut state.current_game);
-        
-        assert!(option::is_some(&game.crash_point), EGameHasntEnded);
-        let crash_point = *option::borrow(&game.crash_point);
-
-        let betters = simple_map::keys(&game.bets);
-
-        let i = 0;
-
-        while (i < vector::length(&betters)) {
-            let better = *vector::borrow(&mut betters, i);
-            let bet = simple_map::borrow_mut(&mut game.bets, &better);
-
-            if(betting_coin_as_string == bet.token_address_as_string){
-                let winnings = determine_win(bet, crash_point);
-
-                if (winnings > 0) {
-                    let winnings_coin = liquidity_pool::extract_reserve_coins<BettingCoinType, LPCoinType>(winnings);
-                    coin::deposit<BettingCoinType>(better, winnings_coin);
-                };
-
-                simple_map::remove(&mut game.bets, &better);
-
-                event::emit_event(
-                    &mut state.winnings_paid_to_player_events,
-                    WinningsPaidToPlayerEvent {
-                      token: type_info::type_name<BettingCoinType>(),
-                      player: better,
-                      winnings
-                    }
-                );
-
-                event::emit(
-                  WinningsPaidToPlayerEvent {
-                      token: type_info::type_name<BettingCoinType>(),
-                      player: better,
-                      winnings
-                    }
-                );
-            };
-
-            i = i + 1;
-        };
-    }
-
-
-
-    public entry fun distribute_winnings_fa<ReserveTokenType: key>() acquires State {
-        let state = borrow_global_mut<State>(get_resource_address());
-        assert!(option::is_some(&state.current_game), ENoGameExists);
-
-        let game_mut_ref = option::borrow_mut(&mut state.current_game);
-        assert!(timestamp::now_microseconds() >= game_mut_ref.start_time_ms, EGameNotStarted);
-
-        let bet_identifier = type_info::type_name<ReserveTokenType>();
-
-        let game = option::borrow_mut(&mut state.current_game);
-        
-        assert!(option::is_some(&game.crash_point), EGameHasntEnded);
-        let crash_point = *option::borrow(&game.crash_point);
-
-        let betters = simple_map::keys(&game.bets);
-
-        let i = 0;
-
-        while (i < vector::length(&betters)) {
-            let better = *vector::borrow(&mut betters, i);
-            let bet = simple_map::borrow_mut(&mut game.bets, &better);
-
-            if(bet_identifier == bet.token_address_as_string){
-                let winnings = determine_win(bet, crash_point);
-
-                if (winnings > 0) {
-                    liquidity_pool::extract_reserve_coins_fa<ReserveTokenType>(winnings, better);
-                };
-
-                simple_map::remove(&mut game.bets, &better);
-
-                event::emit_event(
-                    &mut state.winnings_paid_to_player_events,
-                    WinningsPaidToPlayerEvent {
-                      token: type_info::type_name<ReserveTokenType>(),
-                      player: better,
-                      winnings
-                    }
-                );
-
-                event::emit(
-                  WinningsPaidToPlayerEvent {
-                    token: type_info::type_name<ReserveTokenType>(),
-                    player: better,
-                    winnings
-                  }
-                )
-            };
-
-            i = i + 1;
-        };
-    }
-
-
-    public entry fun shutdown_game() acquires State {
-        let state = borrow_global_mut<State>(get_resource_address());
-        assert!(option::is_some(&state.current_game), ENoGameExists);
-
-        let game_mut_ref = option::borrow_mut(&mut state.current_game);
-        assert!(option::is_some(&game_mut_ref.crash_point), EGameHasntEnded);
-        assert!(timestamp::now_microseconds() >= game_mut_ref.start_time_ms, EGameNotStarted);
-
-        let game = option::borrow_mut(&mut state.current_game);
-        assert!(vector::length(&simple_map::keys(&game.bets)) == 0, ENotAllWinningsDistributed);
-        option::extract(&mut state.current_game);
-    }
-
-  
 
   fun calculate_crash_point_with_randomness(
     randomness: u64, 
@@ -607,16 +409,21 @@ module zion::crash {
   }
 
   inline fun determine_win(
-    bet: &mut Bet, 
+    bet: Bet, 
     crash_point: u64
   ): u64 {
+    let Bet {
+      player: _,
+      bet_amount,
+      cash_out: player_cash_out_option
+    } = bet;
 
-    if (option::is_none(&bet.cash_out)) {
+    if (option::is_none(&player_cash_out_option)) {
       0
     } else {
-      let player_cash_out = option::extract(&mut bet.cash_out);
+      let player_cash_out = option::extract(&mut player_cash_out_option);
       if (player_cash_out < crash_point) {
-        let winnings = (bet.bet_amount) * player_cash_out / 100; 
+        let winnings = bet_amount * player_cash_out / 100; 
         winnings
       } else {
         0
@@ -626,19 +433,5 @@ module zion::crash {
 
   inline fun assert_user_is_module_owner(user: &signer) {
     assert!(signer::address_of(user) == @zion, EUserIsNotModuleOwner);
-  }
-
-  #[view]
-  public fun game_exists(): bool acquires State {
-    let state = borrow_global_mut<State>(get_resource_address());
-    return !option::is_none(&state.current_game)
-  }
-
-  #[view]
-  public fun game_state(): (u64, u64) acquires State {
-    assert!(game_exists(), 0);
-    let state = borrow_global_mut<State>(get_resource_address());
-    let game = option::borrow(&state.current_game);
-    return (game.start_time_ms, game.randomness)
   }
 }

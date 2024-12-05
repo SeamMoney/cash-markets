@@ -68,10 +68,6 @@ module zion::z_apt {
     coin::burn(coin_to_burn, &state.aptos_coin_burn_cap);
   }
 
-  public entry fun zapt_register(signer: &signer){
-    coin::register<ZAPT>(signer);
-  }
-
   /* 
     Create and return the address of the module's resource account
     @return - address of the module's resource account

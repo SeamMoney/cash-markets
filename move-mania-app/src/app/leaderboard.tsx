@@ -16,7 +16,7 @@ import Link from "next/link";
 export type PlayerState = {
     username: string;
     public_address: string;
-    zapt_balance: number;
+    cash_balance: number;
 };
 
 export default function Leaderboard() {
@@ -30,7 +30,7 @@ export default function Leaderboard() {
 
     useEffect(() => {
         getUsers().then((users) => {
-            console.log("got users", users)
+            // console.log("got users", users)
             // getBalances(users).then((balances) => {
             //     console.log(balances)
             //     setUsers(balances);
@@ -47,14 +47,14 @@ export default function Leaderboard() {
                     return {
                         username: user.username,
                         public_address: user.public_address,
-                        zapt_balance: balance,
+                        cash_balance: balance,
                     };
                 } catch (e) {
                     console.error(e);
                     return {
                         username: user.username,
                         public_address: user.public_address,
-                        zapt_balance: 0,
+                        cash_balance: 0,
                     };
                 }
             })
@@ -62,9 +62,11 @@ export default function Leaderboard() {
         return balances;
     }
 
+    // console.log("Leaderboard rendering, users:", users);
+
     return (
         <div className="border border-neutral-700 h-full flex flex-col items-left gap-2 w-full min-h-[200px] max-h-[700px]">
-            <span className="font-semibold text-lg pt-1 ps-4 flex flex-row items-center"><span>zAPT Leaderboard</span><Link href='https://x.com/zionbets/status/1770459737076953351?s=20' target="_blank"><InfoIcon className="h-4 opacity-50 hover:opacity-100 hover:cursor-pointer" /></Link></span>
+            <span className="font-semibold text-lg pt-1 ps-4 flex flex-row items-center"><span>CASH Leaderboard</span><Link href='https://x.com/zionbets/status/1770459737076953351?s=20' target="_blank"><InfoIcon className="h-4 opacity-50 hover:opacity-100 hover:cursor-pointer" /></Link></span>
             <table className="w-full scroll">
                 <thead className="">
                     <tr className="border-b border-neutral-800 text-neutral-400">
@@ -72,14 +74,14 @@ export default function Leaderboard() {
                         <th className="w-[200px] text-left ps-4">Username</th>
                         <th className="w-[100px] text-right pr-4">
                             Balance{" "}
-                            <span className="text-neutral-500  text-xs">apt</span>
+                            <span className="text-neutral-500  text-xs">cash</span>
                         </th>
                     </tr>
                 </thead>
                 <tbody>
                     {users
                         .sort((a, b) => {
-                            return b.zapt_balance - a.zapt_balance;
+                            return b.cash_balance - a.cash_balance;
                         })
                         .slice(0, 10)
                         .map((player, index) => (
@@ -89,7 +91,7 @@ export default function Leaderboard() {
                                 </td>
                                 <td className="ps-4 w-[200px] text-left ps-4 bg-neutral-800/40 bg-[#264234]/40 border-b border-neutral-800">{player.username}</td>
                                 <td className="text-right pr-4 w-[100px] text-right pr-4  bg-neutral-800/40 bg-[#264234]/40 border-b border-neutral-800">
-                                    {player.zapt_balance.toLocaleString(undefined, {
+                                    {player.cash_balance.toLocaleString(undefined, {
                                         maximumFractionDigits: 2,
                                         minimumFractionDigits: 2,
                                     })}
