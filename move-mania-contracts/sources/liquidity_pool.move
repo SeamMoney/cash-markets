@@ -391,43 +391,6 @@ module zion::liquidity_pool {
     primary_fungible_store::burn(&liquidity_pool.lp_burn_ref, signer::address_of(supplier), lp_coin_amount)
   }
 
-  //If you do this you can't get your money back.
-  // public entry fun lock_lp_coins<BettingCoinType, LPCoinType>(
-  //   owner: &signer, 
-  //   lp_coin_amount: u64
-  // ) acquires LiquidityPool, State {
-  //   let liquidity_pool = borrow_global_mut<LiquidityPool<BettingCoinType, LPCoinType>>(get_resource_address());  
-  //   let lp_coin_to_lock = coin::withdraw(owner, lp_coin_amount);
-  //   coin::merge(&mut liquidity_pool.locked_liquidity, lp_coin_to_lock);
-
-  //   event::emit_event(
-  //     &mut borrow_global_mut<State>(get_resource_address()).lock_events,
-  //     LockEvent {
-  //       address: signer::address_of(owner),
-  //       lp_coin_amount
-  //     }
-  //   );
-  // } 
-
-  // public entry fun lock_lp_coins_fa<LiquidityPoolType>(
-  //   owner: &signer, 
-  //   lp_coin_amount: u64
-  // ) acquires LiquidityPoolFA, State {
-  //   let liquidity_pool = borrow_global_mut<LiquidityPoolFA<LiquidityPoolType>>(get_resource_address());  
-  //   let reserve_metadata = liquidity_pool.reserve_metadata;
-  //   let lp_metadata = liquidity_pool.lp_metadata;
-
-  //   primary_fungible_store::transfer(owner, lp_metadata, get_resource_address(), lp_coin_amount);
-
-  //   event::emit_event(
-  //     &mut borrow_global_mut<State>(get_resource_address()).lock_events,
-  //     LockEvent {
-  //       address: signer::address_of(owner),
-  //       lp_coin_amount
-  //     }
-  //   );
-  // } 
-
   public(friend) fun extract_reserve_coins<BettingCoinType, LPCoinType>(
     amount: u64
   ): Coin<BettingCoinType> acquires LiquidityPool, State {
