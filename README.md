@@ -2,7 +2,7 @@
   <img src="https://github.com/SeamMoney/zionbets/blob/203f651c708a06dc31926af1540aa0637fdf779c/move-mania-app/public/CASH_Banner_1500x500.png">
 </p>
 
-# Cash Markets: GambleFi on Aptos
+# Cash Markets: DegenFi Trading Simulator on Aptos
 
 ## Introduction
 Welcome to Zion Bets, a GambleFi project on the Aptos blockchain. Our platform is secured by on-chain randomness, offering a fast, transparent, and verifiable gambling experience.
